@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/* Design system "Estou de Olho" (design-system/estou-de-olho/MASTER.md) */
+@theme {
+  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+
+  --color-primary: #0f172a;
+  --color-on-primary: #ffffff;
+  --color-secondary: #334155;
+  --color-accent: #0369a1;
+  --color-accent-hover: #075985;
+  --color-accent-soft: #e0f2fe;
+  --color-on-accent: #ffffff;
+  --color-background: #f8fafc;
+  --color-foreground: #020617;
+  --color-card: #ffffff;
+  --color-muted: #e8ecf1;
+  --color-muted-foreground: #475569;
+  --color-border: #e2e8f0;
+  --color-destructive: #dc2626;
+  --color-destructive-soft: #fef2f2;
+  --color-warning-soft: #fffbeb;
+  --color-warning: #92400e;
+  --color-ring: #0369a1;
+
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 1px 3px rgb(15 23 42 / 0.06);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+@utility card {
+  @apply rounded-xl border border-border bg-card p-5 sm:p-6;
+  box-shadow: var(--shadow-card);
+}
+
+@utility btn {
+  @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 font-bold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@utility btn-primary {
+  @apply btn bg-accent text-on-accent hover:bg-accent-hover;
+}
+
+@utility btn-secondary {
+  @apply btn border-2 border-primary bg-card text-primary hover:bg-muted;
+}
+
+@utility input {
+  @apply min-h-11 w-full rounded-lg border border-slate-400 bg-card px-3 text-base text-foreground transition-colors duration-150 hover:border-slate-500;
+}
+
+@utility link {
+  @apply font-bold text-accent underline decoration-2 underline-offset-2 hover:text-accent-hover;
+}
+
+@utility numero {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

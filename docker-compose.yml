@@ -1,0 +1,105 @@
+# Site + API:        docker compose up -d --build      (http://<host>:${PORTA_WEB:-8088})
+# Coleta dos dados:  docker compose run --rm coleta    (aceita as mesmas opções: ... coleta python -m civic.scraper --ano 2026)
+# Base de CNPJ:      docker compose run --rm cnpj      (mensal; ~50 min na primeira vez)
+# Pernambuco:        docker compose run --rm pernambuco (verba ALEPE + prefeitura/câmara no TCE-PE)
+# Contratos (PNCP):  docker compose run --rm pncp      (municípios do Brasil; 1ª carga ~4 h)
+# Senadores:         docker compose run --rm senado    (cota CEAPS; ~1 min)
+# Contas municipais: docker compose run --rm siconfi   (DCA de todos os municípios; ~2 h por ano)
+# Eleitos (TSE):     docker compose run --rm tse       (candidatos e bens de 2022 e 2024)
+# Rotina diária:     deploy/rotina.sh                  (coleta + CNPJ + backup; feita para o cron)
+# Testes:            docker compose run --rm testes    (pytest com o código montado)
+name: estoudeolho
+
+x-python: &python
+  build:
+    context: .
+    target: api
+  image: estoudeolho-api:latest
+  user: "${UID:-1000}:${GID:-1000}"
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    TZ: America/Sao_Paulo
+  volumes:
+    - ./data:/app/data
+    - /etc/localtime:/etc/localtime:ro
+
+services:
+  api:
+    <<: *python
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      target: web
+    image: estoudeolho-web:latest
+    ports:
+      - "${PORTA_WEB:-8088}:80"
+    volumes:
+      - ./data/publico:/srv-dados:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  coleta:
+    <<: *python
+    profiles: ["coleta"]
+    command: ["python", "-m", "civic.scraper", "--bulk", "--sem-progresso"]
+
+  cnpj:
+    <<: *python
+    profiles: ["coleta"]
+    command: ["python", "-m", "civic.cnpj"]
+
+  pernambuco:
+    <<: *python
+    profiles: ["coleta"]
+    command: ["python", "-m", "civic.pernambuco", "--sem-progresso"]
+
+  senado:
+    <<: *python
+    profiles: ["coleta"]
+    command: ["python", "-m", "civic.senado"]
+
+  siconfi:
+    <<: *python
+    profiles: ["coleta"]
+    command: ["python", "-m", "civic.siconfi", "--sem-progresso"]
+
+  tse:
+    <<: *python
+    profiles: ["coleta"]
+    command: ["python", "-m", "civic.tse"]
+
+  pncp:
+    <<: *python
+    profiles: ["coleta"]
+    command: ["python", "-m", "civic.pncp", "--sem-progresso"]
+
+  transferegov:
+    <<: *python
+    profiles: ["coleta"]
+    command: ["python", "-m", "civic.transferegov"]
+
+  tce_sp:
+    <<: *python
+    profiles: ["coleta"]
+    command: ["python", "-m", "civic.tce_sp", "--sem-progresso"]
+
+  testes:
+    <<: *python
+    profiles: ["dev"]
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: "sqlite://"
+    command: ["python", "-m", "pytest", "-p", "no:cacheprovider", "-o", "addopts=", "-q"]

@@ -1,0 +1,18 @@
+# Coleta
+requests==2.34.2
+urllib3==2.8.0
+pandas==2.3.3
+tqdm==4.70.1
+
+# Banco e configuração
+SQLAlchemy==2.0.54
+pydantic==2.13.5
+pydantic-settings==2.15.0
+
+# API
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+
+# Testes (httpx é exigido pelo TestClient do FastAPI)
+pytest==9.1.1
+httpx==0.28.1

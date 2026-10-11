@@ -1,0 +1,43 @@
+:80 {
+	encode zstd gzip
+
+	@api path /api/* /health /docs /redoc /openapi.json
+	handle @api {
+		reverse_proxy api:8000
+	}
+
+	# Buscadores: não indexar a API, a busca por nome nem as listas de pessoal (LGPD).
+	handle /robots.txt {
+		header Content-Type "text/plain; charset=utf-8"
+		respond <<TXT
+			User-agent: *
+			Disallow: /api/
+			Disallow: /busca
+			Disallow: /cidade/*/busca
+			Disallow: /cidade/*/pessoal
+			Disallow: /contestar
+			TXT 200
+	}
+
+	# Dumps dos dados consolidados (gerados por `python -m civic.exportar`).
+	handle /dados/* {
+		root * /srv-dados
+		uri strip_prefix /dados
+		header Cache-Control "public, max-age=3600"
+		file_server browse
+	}
+
+	# Arquivos com hash: cache longo e 404 de verdade quando não existem.
+	handle /assets/* {
+		root * /srv
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# Rotas do React (/cidade/PE/Carpina etc.) caem no index.html.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -1,0 +1,11 @@
+# Opcional: reaproveita zips da base de CNPJ da Receita que já existem no servidor
+# (somente leitura), em vez de baixar ~8 GB de novo. Para ligar, no .env:
+#   COMPOSE_FILE=docker-compose.yml:deploy/docker-compose.receita-local.yml
+#   RECEITA_PASTA_LOCAL=/caminho/para/os/zips
+# Quando o zip local tem o mesmo tamanho do arquivo do mês na Receita, ele é usado.
+services:
+  cnpj:
+    environment:
+      CNPJ_PASTA_LOCAL: /receita
+    volumes:
+      - ${RECEITA_PASTA_LOCAL:?defina RECEITA_PASTA_LOCAL no .env}:/receita:ro

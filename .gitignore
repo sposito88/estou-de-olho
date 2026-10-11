@@ -1,0 +1,30 @@
+# Ambiente
+web/.env
+web/node_modules/
+web/dist/
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Dados locais (banco SQLite e downloads do modo --bulk)
+data/*
+!data/.gitkeep
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+
+# Build do TypeScript
+*.tsbuildinfo
+
+# Exportações públicas e bancos de exemplo
+data/publico/
