@@ -35,6 +35,8 @@ from civic.schemas import (
     DetalheEstadualOut,
     BuscaOut,
     ContestacaoAdmin,
+    ContratoTceOut,
+    ContratosTceOut,
     ContestacaoAtualizacao,
     ContestacaoIn,
     ContestacaoPublica,
@@ -448,6 +450,29 @@ def create_app() -> FastAPI:
         offset: Offset = 0,
     ) -> object:
         total, itens = queries.lista_pessoal(db, uf.upper(), municipio, busca, vinculo, desde, limit, offset)
+        return {"total": total, "itens": itens}
+
+    @app.get("/api/municipios/{uf}/{municipio}/contratos-tce", response_model=ContratosTceOut, tags=["municípios"])
+    def contratos_tce(db: Db, uf: UfPath, municipio: MunicipioPath, ano: Ano = None) -> object:
+        """Contratos informados ao tribunal de contas (TCE-PE/LICON), com link para o PDF."""
+        dados = queries.contratos_tce_municipio(db, uf.upper(), municipio, ano)
+        if dados is None:
+            raise HTTPException(status_code=404, detail="Sem contratos do tribunal de contas para este município")
+        return dados
+
+    @app.get("/api/municipios/{uf}/{municipio}/contratos-tce/lista", response_model=Pagina[ContratoTceOut],
+             tags=["municípios"])
+    def contratos_tce_lista(
+        db: Db,
+        uf: UfPath,
+        municipio: MunicipioPath,
+        ano: Ano = None,
+        busca: Annotated[str | None, Query(max_length=100)] = None,
+        tipo_processo: Annotated[str | None, Query(max_length=80)] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 20,
+        offset: Offset = 0,
+    ) -> object:
+        total, itens = queries.lista_contratos_tce(db, uf.upper(), municipio, ano, busca, tipo_processo, limit, offset)
         return {"total": total, "itens": itens}
 
     @app.get("/api/municipios/{uf}/{municipio}/emenda-pix", response_model=EmendaPixOut, tags=["municípios"])

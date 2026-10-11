@@ -464,6 +464,39 @@ def despesa_municipal_do_tce(item: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def contrato_do_tce(item: Mapping[str, Any], ug: int) -> dict[str, Any]:
+    """Normaliza um contrato de `Contratos` do TCE-PE (LICON).
+
+    Usa só `CPF_CNPJ` (CNPJ completo; CPF já mascarado pelo tribunal). Os campos
+    `NumeroDocumento`/`NumeroDocumentoAjustado` trazem o CPF completo e são ignorados.
+    """
+    doc, pessoa = _documento_tce(item.get("CPF_CNPJ"))
+    vigencia = [parse_data(p.strip()) for p in (limpar_texto(item.get("Vigencia")) or "").split(" a ")]
+    objeto = limpar_texto(item.get("Objeto"))
+    fornecedor = limpar_texto(item.get("RazaoSocial"))
+    return {
+        "codigo": str(limpar_texto(item.get("CodigoContrato")) or ""),
+        "unidade_gestora_id": ug,
+        "ano": int(item["AnoContrato"]),
+        "numero": limpar_texto(item.get("NumeroContrato")),
+        "tipo_processo": limpar_texto(item.get("TipoProcesso")),
+        "numero_processo": limpar_texto(item.get("NumeroProcesso")),
+        "ano_processo": para_inteiro(item.get("AnoProcesso")),
+        "objeto": objeto,
+        "objeto_normalizado": normalizar_nome(objeto),
+        "fornecedor": fornecedor,
+        "fornecedor_normalizado": normalizar_nome(fornecedor),
+        "cpf_cnpj": doc,
+        "tipo_pessoa": pessoa,
+        "valor_centavos": para_centavos(item.get("Valor")),
+        "vigencia_inicio": vigencia[0] if vigencia else None,
+        "vigencia_fim": vigencia[1] if len(vigencia) > 1 else None,
+        "situacao": limpar_texto(item.get("Situacao")),
+        "estagio": limpar_texto(item.get("Estagio")),
+        "url_documento": limpar_texto(item.get("LinkArquivo")),
+    }
+
+
 def pagamento_do_tce(item: Mapping[str, Any]) -> dict[str, Any]:
     """Normaliza um pagamento de `EmpenhoPagamento` do TCE-PE (sem os dados bancários)."""
     return {

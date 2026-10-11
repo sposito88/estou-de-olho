@@ -8,9 +8,11 @@ ALEPE: usa os mesmos endpoints JSON públicos que o portal transparencia.alepe.p
 (lista de deputados -> meses -> documentos -> notas), a no máximo ALEPE_REQ_PER_SEC.
 Meses antigos com checkpoint são pulados; os 3 meses mais recentes são sempre relidos.
 
-TCE-PE: para cada município de TCE_MUNICIPIOS, baixa todos os empenhos do ano
-(uma chamada por ano), os pagamentos de cada órgão (com a data em que o dinheiro
-saiu) e a lista de vínculos de pessoal de cada órgão.
+TCE-PE: para cada município de TCE_MUNICIPIOS ("todos" = os 184 de PE), baixa os
+empenhos do ano (uma chamada; órgão por órgão se passar do limite da API), os
+pagamentos de cada órgão (com a data em que o dinheiro saiu), os contratos (LICON,
+com link do PDF) e, uma vez por semana, a lista de vínculos de pessoal. Anos
+fechados já baixados são pulados (o anterior é relido até junho).
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ import time
 from collections.abc import Sequence
 from datetime import date, datetime
 from typing import Any
+from urllib.parse import quote
 
 import requests
 from sqlalchemy import delete, insert, select
@@ -31,20 +34,25 @@ from sqlalchemy.orm import Session
 
 from civic.alertas import recalcular_se_configurado
 from civic.cleaning import (
+    contrato_do_tce,
     despesa_municipal_do_tce,
     normalizar_nome,
     pagamento_do_tce,
+    para_inteiro,
     servidor_do_tce,
     verba_da_alepe,
 )
 from civic.config import ANO_INICIAL_CEAP, Settings, get_settings
 from civic.database import SessionLocal, init_db
 from civic.models import (
+    ContratoMunicipal,
     DeputadoEstadual,
     DespesaMunicipal,
     PagamentoMunicipal,
+    Municipio,
     ServidorMunicipal,
     SyncCheckpointEstadual,
+    SyncMunicipioAno,
     UnidadeGestora,
     VerbaIndenizatoria,
 )
@@ -53,6 +61,9 @@ from civic.scraper import RateLimiter, Resumo, barra, criar_sessao, em_lotes, re
 logger = logging.getLogger("civic.pernambuco")
 
 MESES_SEMPRE_RELIDOS = 3
+FONTE_TCE = "TCE-PE"
+FONTE_PESSOAL = "TCE-PE-PESSOAL"
+DIAS_PESSOAL = 7  # a lista de pessoal muda pouco: relê uma vez por semana
 NATUREZAS_EXCLUIDAS = {"Consórcio"}  # atende vários municípios; distorceria a conta da cidade
 
 
@@ -219,19 +230,37 @@ def coletar_verbas(
 # --------------------------------------------------------------------------- TCE-PE
 
 
-def sincronizar_unidades(cliente: ClienteJson, db: Session, s: Settings) -> dict[str, list[int]]:
-    """Órgãos municipais dos municípios configurados. Retorna {código TCE do município: [ids]}."""
+def sincronizar_unidades(cliente: ClienteJson, db: Session, s: Settings) -> dict[str, dict[str, Any]]:
+    """Órgãos municipais dos municípios configurados (TCE_MUNICIPIOS, ou "todos").
+
+    O nome do município vem do TCE-PE e é casado com o do IBGE (grafias diferem às vezes),
+    para que as páginas da cidade encontrem os órgãos. Retorna
+    {código TCE do município: {"ids": [...], "nome_tce": "...", "nome": "..."}}.
+    """
+    from civic.tse import MapaMunicipios
+
+    todos = any(normalizar_nome(m) == "TODOS" for m in s.tce_municipios)
     alvo = {normalizar_nome(m) for m in s.tce_municipios}
+    ibge = {codigo: nome for codigo, nome in db.execute(
+        select(Municipio.codigo_ibge, Municipio.nome_normalizado).where(Municipio.sigla_uf == "PE")
+    )}
+    mapa = MapaMunicipios([(c, "PE", n) for c, n in ibge.items()])
     unidades = conteudo_tce(cliente, f"{s.tce_url}/UnidadesJurisdicionadas!json", {})
-    linhas = []
+    linhas, nomes_tce = [], {}
+    sem_ibge: set[str] = set()
     for u in unidades:
         municipio = (u.get("MUNICIPIO") or "").strip()
         if (
             (u.get("ESFERA") or "").strip() != "Municipal"
-            or normalizar_nome(municipio) not in alvo
+            or (not todos and normalizar_nome(municipio) not in alvo)
             or (u.get("NATUREZA") or "").strip() in NATUREZAS_EXCLUIDAS
         ):
             continue
+        codigo_ibge = mapa.get(("PE", normalizar_nome(municipio) or ""))
+        if codigo_ibge is None:
+            sem_ibge.add(municipio)
+        codigo = u["CODIGOMUNICIPIO"].strip()
+        nomes_tce[codigo] = municipio
         linhas.append(
             {
                 "id": int(u["ID_UNIDADE_GESTORA"]),
@@ -239,82 +268,141 @@ def sincronizar_unidades(cliente: ClienteJson, db: Session, s: Settings) -> dict
                 "natureza": (u.get("NATUREZA") or "").strip() or None,
                 "fonte": "TCE-PE",
                 "codigo_origem": str(int(u["ID_UNIDADE_GESTORA"])),
-                "codigo_municipio_tce": u["CODIGOMUNICIPIO"].strip(),
+                "codigo_municipio_tce": codigo,
                 "municipio": municipio,
-                "municipio_normalizado": normalizar_nome(municipio) or "",
+                "municipio_normalizado": ibge.get(codigo_ibge or "", normalizar_nome(municipio) or ""),
                 "sigla_uf": "PE",
             }
         )
-    if linhas:
-        stmt = sqlite_insert(UnidadeGestora).values(linhas)
+    for lote in em_lotes(linhas, 500):
+        stmt = sqlite_insert(UnidadeGestora).values(list(lote))
         stmt = stmt.on_conflict_do_update(
             index_elements=[UnidadeGestora.id], set_={c: stmt.excluded[c] for c in linhas[0] if c != "id"}
         )
         db.execute(stmt)
     db.commit()
-    por_municipio: dict[str, list[int]] = {}
+    por_municipio: dict[str, dict[str, Any]] = {}
     for l in linhas:
-        por_municipio.setdefault(l["codigo_municipio_tce"], []).append(l["id"])
-    faltando = alvo - {l["municipio_normalizado"] for l in linhas}
-    if faltando:
-        logger.warning("Municípios sem órgão no TCE-PE: %s", sorted(faltando))
+        item = por_municipio.setdefault(l["codigo_municipio_tce"], {"ids": [], "nome_tce": nomes_tce[l["codigo_municipio_tce"]],
+                                                                    "nome": l["municipio"]})
+        item["ids"].append(l["id"])
+    if sem_ibge:
+        logger.warning("Municípios do TCE-PE sem par no IBGE (ficam sem página da cidade): %s", sorted(sem_ibge))
+    if not todos:
+        faltando = alvo - {normalizar_nome(l["municipio"]) for l in linhas}
+        if faltando:
+            logger.warning("Municípios sem órgão no TCE-PE: %s", sorted(faltando))
     logger.info("%d órgãos municipais em %d município(s)", len(linhas), len(por_municipio))
     return por_municipio
 
 
-def coletar_tce(cliente: ClienteJson, db: Session, anos: list[int], s: Settings, resumo: Resumo) -> int:
-    """Empenhos de cada município/ano (substitui o ano inteiro) e vínculos de pessoal de cada órgão."""
-    por_municipio = sincronizar_unidades(cliente, db, s)
-    total = 0
-    for codigo, ids in por_municipio.items():
-        for ano in anos:
-            try:
-                itens = conteudo_tce(
-                    cliente, f"{s.tce_url}/DespesasMunicipais!json", {"CODIGO_MUNICIPIO": codigo, "ANOREFERENCIA": ano}
-                )
-                linhas = [despesa_municipal_do_tce(i) for i in itens if int(i["ID_UNIDADE_GESTORA"]) in ids]
-                linhas = list({l["chave"]: l for l in linhas}.values())
-                db.execute(
-                    delete(DespesaMunicipal).where(
-                        DespesaMunicipal.unidade_gestora_id.in_(ids), DespesaMunicipal.ano == ano
-                    )
-                )
-                for lote in em_lotes(linhas, 2_000):
-                    db.execute(insert(DespesaMunicipal), list(lote))
-                db.commit()
-                total += len(linhas)
-                logger.info("TCE-PE %s/%d: %d empenhos", codigo, ano, len(linhas))
-            except Exception as exc:  # noqa: BLE001
-                db.rollback()
-                resumo.registrar_falha(f"TCE-PE despesas {codigo}/{ano}", exc)
-            for ug in ids:
-                try:
-                    itens = conteudo_tce(
-                        cliente, f"{s.tce_url}/EmpenhoPagamento!json", {"ID_UNIDADE_GESTORA": ug, "ANOREFERENCIA": ano}
-                    )
-                    pagamentos = [pagamento_do_tce(i) for i in itens if int(i["ID_UNIDADE_GESTORA"]) == ug]
-                    db.execute(delete(PagamentoMunicipal).where(
-                        PagamentoMunicipal.unidade_gestora_id == ug, PagamentoMunicipal.ano == ano
-                    ))
-                    for lote in em_lotes(pagamentos, 2_000):
-                        db.execute(insert(PagamentoMunicipal), list(lote))
-                    db.commit()
-                    logger.info("TCE-PE órgão %d/%d: %d pagamentos", ug, ano, len(pagamentos))
-                except Exception as exc:  # noqa: BLE001
-                    db.rollback()
-                    resumo.registrar_falha(f"TCE-PE pagamentos {ug}/{ano}", exc)
+def ano_fechado(ano: int, hoje: date) -> bool:
+    """O ano já não muda mais no tribunal? (o anterior ainda recebe correções até junho)"""
+    return ano < hoje.year - 1 or (ano == hoje.year - 1 and hoje.month > 6)
+
+
+def _substituir(db: Session, modelo: Any, ids: list[int], ano: int | None, linhas: list[dict[str, Any]]) -> None:
+    filtro = [modelo.unidade_gestora_id.in_(ids)]
+    if ano is not None:
+        filtro.append(modelo.ano == ano)
+    db.execute(delete(modelo).where(*filtro))
+    for lote in em_lotes(linhas, 2_000):
+        db.execute(insert(modelo), list(lote))
+
+
+def _despesas(cliente: ClienteJson, s: Settings, codigo: str, ids: list[int], ano: int) -> list[dict[str, Any]]:
+    """Empenhos do município no ano; se a resposta bater no limite da API, pede órgão por órgão."""
+    corpo = cliente.get(f"{s.tce_url}/DespesasMunicipais!json", {"CODIGO_MUNICIPIO": codigo, "ANOREFERENCIA": ano},
+                        latin1=True)["resposta"]
+    itens = corpo.get("conteudo") or []
+    if corpo.get("status") != "OK":
+        raise ValueError(f"TCE-PE respondeu {corpo.get('status')} para despesas {codigo}/{ano}")
+    if corpo.get("limiteResultado") and len(itens) >= int(corpo["limiteResultado"]):
+        logger.info("TCE-PE %s/%d passou do limite: consultando órgão por órgão", codigo, ano)
+        itens = []
         for ug in ids:
+            itens += conteudo_tce(cliente, f"{s.tce_url}/DespesasMunicipais!json",
+                                  {"ID_UNIDADE_GESTORA": ug, "ANOREFERENCIA": ano})
+    linhas = [despesa_municipal_do_tce(i) for i in itens if int(i["ID_UNIDADE_GESTORA"]) in ids]
+    return list({l["chave"]: l for l in linhas}.values())
+
+
+def _contratos(cliente: ClienteJson, s: Settings, nome_tce: str, ids: list[int], ano: int) -> list[dict[str, Any]]:
+    """Contratos (LICON) do município no ano. O filtro por nome precisa ir em latin1, como a API."""
+    url = f"{s.tce_url}/Contratos!json?Municipio={quote(nome_tce, encoding='latin1')}&AnoContrato={ano}"
+    itens = conteudo_tce(cliente, url, {})
+    linhas = [contrato_do_tce(i, int(i["CodigoUG"])) for i in itens if para_inteiro(i.get("CodigoUG")) in ids]
+    return list({(l["unidade_gestora_id"], l["codigo"]): l for l in linhas}.values())
+
+
+def coletar_tce(
+    cliente: ClienteJson,
+    db: Session,
+    anos: list[int],
+    s: Settings,
+    resumo: Resumo,
+    forcar: bool = False,
+    hoje: date | None = None,
+) -> int:
+    """Por município: empenhos, pagamentos e contratos de cada ano (substitui o ano inteiro) e o
+    pessoal de cada órgão. Anos fechados já baixados são pulados; o pessoal é relido a cada 7 dias."""
+    hoje = hoje or date.today()
+    por_municipio = sincronizar_unidades(cliente, db, s)
+    feitos = {(m, a) for m, a in db.execute(
+        select(SyncMunicipioAno.municipio, SyncMunicipioAno.ano).where(SyncMunicipioAno.fonte == FONTE_TCE)
+    )}
+    pessoal_recente = {m for m, quando in db.execute(
+        select(SyncMunicipioAno.municipio, SyncMunicipioAno.concluido_em).where(SyncMunicipioAno.fonte == FONTE_PESSOAL)
+    ) if quando and (datetime.now() - quando).days < DIAS_PESSOAL}
+    total = 0
+
+    def marcar(fonte: str, codigo: str, ano: int, registros: int) -> None:
+        stmt = sqlite_insert(SyncMunicipioAno).values(fonte=fonte, municipio=codigo, ano=ano, registros=registros,
+                                                      concluido_em=datetime.now())
+        db.execute(stmt.on_conflict_do_update(
+            index_elements=["fonte", "municipio", "ano"],
+            set_={"registros": stmt.excluded.registros, "concluido_em": stmt.excluded.concluido_em},
+        ))
+
+    for codigo, info in por_municipio.items():
+        ids, nome = info["ids"], info["nome"]
+        for ano in anos:
+            if not forcar and (codigo, ano) in feitos and ano_fechado(ano, hoje):
+                continue
             try:
-                itens = conteudo_tce(cliente, f"{s.tce_url}/ListaServidores!json", {"UnidadeJurisdicionadaTCE": ug})
-                linhas = [servidor_do_tce(i) for i in itens if int(i["UnidadeJurisdicionadaTCE"]) == ug]
-                db.execute(delete(ServidorMunicipal).where(ServidorMunicipal.unidade_gestora_id == ug))
-                for lote in em_lotes(linhas, 2_000):
-                    db.execute(insert(ServidorMunicipal), list(lote))
+                despesas = _despesas(cliente, s, codigo, ids, ano)
+                pagamentos = []
+                for ug in ids:
+                    itens = conteudo_tce(cliente, f"{s.tce_url}/EmpenhoPagamento!json",
+                                         {"ID_UNIDADE_GESTORA": ug, "ANOREFERENCIA": ano})
+                    pagamentos += [pagamento_do_tce(i) for i in itens if int(i["ID_UNIDADE_GESTORA"]) == ug]
+                contratos = _contratos(cliente, s, info["nome_tce"], ids, ano)
+                _substituir(db, DespesaMunicipal, ids, ano, despesas)
+                _substituir(db, PagamentoMunicipal, ids, ano, pagamentos)
+                _substituir(db, ContratoMunicipal, ids, ano, contratos)
+                if ano_fechado(ano, hoje):
+                    marcar(FONTE_TCE, codigo, ano, len(despesas))
                 db.commit()
-                logger.info("TCE-PE órgão %d: %d vínculos de pessoal", ug, len(linhas))
-            except Exception as exc:  # noqa: BLE001
+                total += len(despesas)
+                logger.info("TCE-PE %s/%d: %d empenhos, %d pagamentos, %d contratos",
+                            nome, ano, len(despesas), len(pagamentos), len(contratos))
+            except Exception as exc:  # noqa: BLE001 - um município com erro não para a carga
                 db.rollback()
-                resumo.registrar_falha(f"TCE-PE servidores {ug}", exc)
+                resumo.registrar_falha(f"TCE-PE {nome}/{ano}", exc)
+        if not forcar and codigo in pessoal_recente:
+            continue
+        try:
+            vinculos = []
+            for ug in ids:
+                itens = conteudo_tce(cliente, f"{s.tce_url}/ListaServidores!json", {"UnidadeJurisdicionadaTCE": ug})
+                vinculos += [servidor_do_tce(i) for i in itens if int(i["UnidadeJurisdicionadaTCE"]) == ug]
+            _substituir(db, ServidorMunicipal, ids, None, vinculos)
+            marcar(FONTE_PESSOAL, codigo, 0, len(vinculos))
+            db.commit()
+            logger.info("TCE-PE %s: %d vínculos de pessoal", nome, len(vinculos))
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            resumo.registrar_falha(f"TCE-PE pessoal {nome}", exc)
     registrar_execucao(db, "tce", total)
     return total
 
@@ -357,7 +445,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not args.so_alepe:
             tce = ClienteJson(s.req_per_sec, max(s.timeout, 300))
             try:
-                coletar_tce(tce, db, anos, s, resumo)
+                coletar_tce(tce, db, anos, s, resumo, args.forcar)
             except Exception as exc:  # noqa: BLE001
                 db.rollback()
                 resumo.registrar_falha("TCE-PE", exc)

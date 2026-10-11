@@ -10,6 +10,7 @@ reais acontece nos schemas.
 from __future__ import annotations
 
 import fnmatch
+import re
 import statistics
 import time
 from datetime import date, datetime
@@ -26,6 +27,7 @@ from civic.models import (
     Alerta,
     Candidato,
     ContaMunicipal,
+    ContratoMunicipal,
     ContratoPncp,
     Deputado,
     DeputadoEstadual,
@@ -1529,6 +1531,77 @@ def lista_pessoal(
          "matricula": v.matricula, "cpf": _cpf_mascarado(v.cpf_meio), "orgao": orgaos[v.unidade_gestora_id].nome}
         for v in itens
     ]
+
+
+# --------------------------------------------------------------------------- cidade: contratos do tribunal (LICON)
+
+PROCESSOS_SEM_DISPUTA = ("DISPENSA", "INEXIGIBILIDADE")
+
+
+def _filtro_contratos_tce(ids: list[int], ano: int | None, busca: str | None = None,
+                          tipo_processo: str | None = None) -> list[Any]:
+    filtro: list[Any] = [ContratoMunicipal.unidade_gestora_id.in_(ids)]
+    if ano is not None:
+        filtro.append(ContratoMunicipal.ano == ano)
+    termo = normalizar_nome(busca)
+    if termo:
+        filtro.append(or_(ContratoMunicipal.objeto_normalizado.contains(termo),
+                          ContratoMunicipal.fornecedor_normalizado.contains(termo),
+                          ContratoMunicipal.cpf_cnpj == re.sub(r"\D", "", busca or "")))
+    if tipo_processo:
+        filtro.append(ContratoMunicipal.tipo_processo == tipo_processo)
+    return filtro
+
+
+def contratos_tce_municipio(db: Session, uf: str, municipio: str, ano: int | None = None) -> dict[str, Any] | None:
+    """Contratos informados ao tribunal de contas (TCE-PE/LICON): totais, modalidades e maiores fornecedores."""
+    orgaos = {o.id: o for o in _orgaos(db, uf, municipio)}
+    if not orgaos:
+        return None
+    ids = list(orgaos)
+    anos = list(db.scalars(select(distinct(ContratoMunicipal.ano)).where(ContratoMunicipal.unidade_gestora_id.in_(ids))
+                           .order_by(ContratoMunicipal.ano.desc())))
+    if not anos:
+        return None
+    filtro = _filtro_contratos_tce(ids, ano)
+    soma = func.coalesce(func.sum(ContratoMunicipal.valor_centavos), 0)
+    total, qtd = db.execute(select(soma, func.count()).where(*filtro)).one()
+    por_tipo = [
+        {"nome": t or "Não informado", "qtd": n, "total": int(v)}
+        for t, n, v in db.execute(
+            select(ContratoMunicipal.tipo_processo, func.count(), soma).where(*filtro)
+            .group_by(ContratoMunicipal.tipo_processo).order_by(soma.desc())
+        )
+    ]
+    sem_disputa = sum(t["total"] for t in por_tipo if any(p in (normalizar_nome(t["nome"]) or "") for p in PROCESSOS_SEM_DISPUTA))
+    soma_f = func.sum(ContratoMunicipal.valor_centavos).label("total")
+    fornecedores = [
+        {"nome": n or "Não informado", "cpf_cnpj": c, "tipo_pessoa": tp, "total": int(t), "qtd": q}
+        for _, n, c, tp, t, q in db.execute(
+            select(ContratoMunicipal.fornecedor_normalizado, func.max(ContratoMunicipal.fornecedor),
+                   func.max(ContratoMunicipal.cpf_cnpj), func.max(ContratoMunicipal.tipo_pessoa), soma_f, func.count())
+            .where(*filtro).group_by(ContratoMunicipal.fornecedor_normalizado).order_by(soma_f.desc()).limit(15)
+        )
+    ]
+    return {"ano": ano, "anos": anos, "total": int(total), "qtd": qtd, "total_sem_disputa": sem_disputa,
+            "por_tipo_processo": por_tipo, "fornecedores": fornecedores}
+
+
+def lista_contratos_tce(
+    db: Session, uf: str, municipio: str, ano: int | None = None, busca: str | None = None,
+    tipo_processo: str | None = None, limit: int = 20, offset: int = 0,
+) -> tuple[int, list[dict[str, Any]]]:
+    orgaos = {o.id: o for o in _orgaos(db, uf, municipio)}
+    if not orgaos:
+        return 0, []
+    filtro = _filtro_contratos_tce(list(orgaos), ano, busca, tipo_processo)
+    total = db.scalar(select(func.count()).select_from(ContratoMunicipal).where(*filtro)) or 0
+    itens = db.scalars(
+        select(ContratoMunicipal).where(*filtro)
+        .order_by(ContratoMunicipal.valor_centavos.desc(), ContratoMunicipal.id).limit(limit).offset(offset)
+    )
+    return total, [{**{c.name: getattr(x, c.name) for c in ContratoMunicipal.__table__.columns},
+                    "orgao": orgaos[x.unidade_gestora_id].nome} for x in itens]
 
 
 # --------------------------------------------------------------------------- cidade: Emenda Pix

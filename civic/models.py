@@ -378,6 +378,34 @@ class PagamentoMunicipal(Base):
     valor_centavos: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
+class ContratoMunicipal(Base):
+    """Contrato de órgão municipal informado ao TCE-PE (sistema LICON), com link para o PDF."""
+
+    __tablename__ = "contratos_municipais"
+    __table_args__ = (Index("ix_contr_mun_ug_ano", "unidade_gestora_id", "ano"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    codigo: Mapped[str] = mapped_column(String(20), index=True)  # CodigoContrato do TCE-PE
+    unidade_gestora_id: Mapped[int] = mapped_column(ForeignKey("unidades_gestoras.id"))
+    ano: Mapped[int] = mapped_column(Integer)
+    numero: Mapped[str | None] = mapped_column(String(30))
+    tipo_processo: Mapped[str | None] = mapped_column(String(80))  # Pregão, Dispensa, Inexigibilidade...
+    numero_processo: Mapped[str | None] = mapped_column(String(30))
+    ano_processo: Mapped[int | None] = mapped_column(Integer)
+    objeto: Mapped[str | None] = mapped_column(Text)
+    objeto_normalizado: Mapped[str | None] = mapped_column(Text)
+    fornecedor: Mapped[str | None] = mapped_column(String(300))
+    fornecedor_normalizado: Mapped[str | None] = mapped_column(String(300))
+    cpf_cnpj: Mapped[str | None] = mapped_column(String(20), index=True)  # CPF só mascarado
+    tipo_pessoa: Mapped[str | None] = mapped_column(String(2))
+    valor_centavos: Mapped[int] = mapped_column(BigInteger, default=0)
+    vigencia_inicio: Mapped[date | None] = mapped_column(Date)
+    vigencia_fim: Mapped[date | None] = mapped_column(Date)
+    situacao: Mapped[str | None] = mapped_column(String(60))
+    estagio: Mapped[str | None] = mapped_column(String(60))
+    url_documento: Mapped[str | None] = mapped_column(String(500))
+
+
 class ServidorMunicipal(Base):
     """Vínculo de pessoal informado ao TCE-PE (Sagres Pessoal): nome, cargo e vínculo, sem salário."""
 

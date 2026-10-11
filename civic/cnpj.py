@@ -33,6 +33,7 @@ from civic.config import Settings, get_settings
 from civic.database import SessionLocal, init_db
 from civic.ibge import atualizar_municipios
 from civic.models import (
+    ContratoMunicipal,
     ContratoPncp,
     Despesa,
     DespesaMunicipal,
@@ -212,6 +213,7 @@ def cnpjs_alvo(db: Session) -> set[str]:
         (DespesaMunicipal.cpf_cnpj, DespesaMunicipal.tipo_pessoa),
         (DespesaSenado.cnpj_cpf, DespesaSenado.tipo_pessoa),
         (ContratoPncp.fornecedor_ni, ContratoPncp.tipo_pessoa),
+        (ContratoMunicipal.cpf_cnpj, ContratoMunicipal.tipo_pessoa),
     ):
         alvo.update(c for c in db.scalars(select(coluna).where(tipo == "PJ").distinct()) if c and len(c) == 14)
     return alvo

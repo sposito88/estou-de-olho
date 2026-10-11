@@ -2,6 +2,7 @@ import { ExternalLink, FileSignature, Landmark, Search, Wallet } from "lucide-re
 import { useEffect, useId, useState } from "react";
 import { Link, useParams } from "react-router";
 import { CabecalhoCidade } from "../components/CabecalhoCidade";
+import { ContratosTribunal } from "../components/ContratosTribunal";
 import { AvisoAlertas, CartaoAlerta, useTiposAlerta } from "../components/CartaoAlerta";
 import { CampoSelect, opcoesSimples } from "../components/Campos";
 import { Carregando, ErroApi, Vazio } from "../components/Estado";
@@ -50,6 +51,7 @@ export function Contratos() {
   return (
     <div className="space-y-6">
       <CabecalhoCidade uf={uf} municipio={municipio} />
+      <ContratosTribunal base={base} ano={valores.ano} />
       {resumo.erro ? (
         <ErroApi erro={resumo.erro} onTentarDeNovo={resumo.recarregar} />
       ) : !resumo.dados ? (

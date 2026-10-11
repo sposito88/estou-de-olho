@@ -894,3 +894,50 @@ class ContestacaoAdmin(ContestacaoPublica):
 class ContestacaoAtualizacao(BaseModel):
     status: Literal["recebida", "em_analise", "corrigida", "mantida", "resposta_publicada"]
     resposta_publica: str | None = Field(default=None, max_length=4000)
+
+
+# --------------------------------------------------------------------------- contratos do tribunal (LICON)
+
+
+class TipoProcessoItem(Schema):
+    nome: str
+    qtd: int
+    total: Reais
+
+
+class FornecedorContratoItem(Schema):
+    nome: str
+    cpf_cnpj: str | None
+    tipo_pessoa: str | None
+    total: Reais
+    qtd: int
+
+
+class ContratosTceOut(Schema):
+    ano: int | None
+    anos: list[int]
+    total: Reais
+    qtd: int
+    total_sem_disputa: Reais
+    por_tipo_processo: list[TipoProcessoItem]
+    fornecedores: list[FornecedorContratoItem]
+
+
+class ContratoTceOut(Schema):
+    id: int
+    orgao: str
+    ano: int
+    numero: str | None
+    tipo_processo: str | None
+    numero_processo: str | None
+    ano_processo: int | None
+    objeto: str | None
+    fornecedor: str | None
+    cpf_cnpj: str | None
+    tipo_pessoa: str | None
+    valor: Reais = _campo_reais("valor")
+    vigencia_inicio: date | None
+    vigencia_fim: date | None
+    situacao: str | None
+    estagio: str | None
+    url_documento: str | None

@@ -137,6 +137,16 @@ def test_recente() -> None:
     assert not pernambuco.recente(2026, 7, hoje)
 
 
+CONTRATO = {
+    "CodigoContrato": "777", "CodigoUG": "169", "AnoContrato": "2025", "NumeroContrato": "12",
+    "TipoProcesso": "Pregão Eletrônico", "NumeroProcesso": "5", "AnoProcesso": "2025",
+    "Objeto": "LOCAÇÃO DE VEÍCULOS", "RazaoSocial": "Fulano de Tal", "CPF_CNPJ": "***.***.724-69",
+    "NumeroDocumento": "032.679.724-69", "NumeroDocumentoAjustado": "03267972469", "Valor": "46999.20",
+    "Vigencia": "11/08/2025 a 11/08/2026", "Situacao": "Regular", "Estagio": "Em Execução",
+    "LinkArquivo": "http://sistemas.tcepe.tc.br/audinArquivos/licon/contrato.pdf",
+}
+
+
 def _tce(empenhos_2025: list[dict[str, Any]]) -> ClienteFalso:
     def resposta(conteudo: list[dict[str, Any]]) -> dict[str, Any]:
         return {"resposta": {"status": "OK", "limiteResultado": "100000", "conteudo": conteudo}}
@@ -155,6 +165,12 @@ def _tce(empenhos_2025: list[dict[str, Any]]) -> ClienteFalso:
         {
             "UnidadesJurisdicionadas": resposta(unidades),
             "DespesasMunicipais": lambda p: resposta(empenhos_2025 if p["ANOREFERENCIA"] == 2025 else []),
+            "EmpenhoPagamento": lambda p: resposta(
+                [{"ID_UNIDADE_GESTORA": "170", "IDEMPENHO": "9673719", "TIPO": "Pagamento",
+                  "DATA": "2025-03-20 00:00:00.0", "ANOREFERENCIA": "2025", "VALOR": "300.00"}]
+                if p["ID_UNIDADE_GESTORA"] == 170 and p["ANOREFERENCIA"] == 2025 else []
+            ),
+            "Contratos!json": lambda p: resposta([CONTRATO]),
             "ListaServidores": lambda p: resposta(
                 [{"UnidadeJurisdicionadaTCE": "170", "NomeServidor": "Severino Borges da Silva", "NomeCargo": "VEREADOR",
                   "NomeTipoVinculo": "Eletivo", "DataAdmissao": "2025-01-01"}]
@@ -167,13 +183,48 @@ def _tce(empenhos_2025: list[dict[str, Any]]) -> ClienteFalso:
 def test_coleta_tce_substitui_ano_e_ignora_consorcio(db: Session) -> None:
     s = Settings(_env_file=None, tce_municipios="Carpina")  # type: ignore[call-arg]
     empenhos = [EMPENHO, {**EMPENHO, "ID_EMPENHO": "2", "ID_UNIDADE_GESTORA": "1301"}]  # consórcio fica de fora
-    assert pernambuco.coletar_tce(_tce(empenhos), db, [2025], s, Resumo()) == 1  # type: ignore[arg-type]
+    hoje = date(2025, 9, 1)  # 2025 ainda aberto: é relido a cada coleta
+    assert pernambuco.coletar_tce(_tce(empenhos), db, [2025], s, Resumo(), hoje=hoje) == 1  # type: ignore[arg-type]
     assert {u.id for u in db.scalars(select(UnidadeGestora))} == {169, 170}
     assert db.scalar(select(func.count()).select_from(ServidorMunicipal)) == 1
 
     # Recoleta do ano troca tudo (sem duplicar).
-    pernambuco.coletar_tce(_tce([{**EMPENHO, "VALORPAGO": "450.00"}]), db, [2025], s, Resumo())  # type: ignore[arg-type]
+    pernambuco.coletar_tce(_tce([{**EMPENHO, "VALORPAGO": "450.00"}]), db, [2025], s, Resumo(),  # type: ignore[arg-type]
+                           hoje=hoje)
     assert [d.valor_pago_centavos for d in db.scalars(select(DespesaMunicipal))] == [45_000]
+
+
+def test_coleta_tce_contratos_pagamentos_e_checkpoint(db: Session) -> None:
+    from civic.models import ContratoMunicipal, Municipio, PagamentoMunicipal, SyncMunicipioAno
+
+    db.add(Municipio(codigo_ibge="2604007", nome="Carpina", nome_normalizado="CARPINA", sigla_uf="PE"))
+    db.commit()
+    s = Settings(_env_file=None, tce_municipios="todos")  # type: ignore[call-arg]
+    cliente = _tce([EMPENHO])
+    pernambuco.coletar_tce(cliente, db, [2023, 2025], s, Resumo(), hoje=date(2025, 9, 1))  # type: ignore[arg-type]
+    # "todos": Abreu e Lima também entra (sem par no IBGE, fica com o nome do TCE).
+    assert {u.municipio for u in db.scalars(select(UnidadeGestora))} == {"Carpina", "Abreu e Lima"}
+    [contrato] = db.scalars(select(ContratoMunicipal))
+    assert (contrato.unidade_gestora_id, contrato.cpf_cnpj, contrato.valor_centavos) == (169, "***.***.724-69", 4_699_920)
+    assert contrato.vigencia_fim == date(2026, 8, 11) and contrato.url_documento.endswith(".pdf")
+    assert "03267972469" not in str({c.name: getattr(contrato, c.name) for c in ContratoMunicipal.__table__.columns})
+    assert db.scalar(select(func.count()).select_from(PagamentoMunicipal)) == 1
+    # 2023 (fechado) ganhou checkpoint; 2025 não. Na segunda vez, 2023 não é pedido de novo.
+    assert set(db.scalars(select(SyncMunicipioAno.ano).where(SyncMunicipioAno.fonte == "TCE-PE"))) == {2023}
+    cliente2 = _tce([EMPENHO])
+    pernambuco.coletar_tce(cliente2, db, [2023, 2025], s, Resumo(), hoje=date(2025, 9, 2))  # type: ignore[arg-type]
+    pedidos = [p.get("ANOREFERENCIA") for u, p in cliente2.chamadas if "DespesasMunicipais" in u]
+    assert 2023 not in pedidos and 2025 in pedidos
+    assert not any("ListaServidores" in u for u, _ in cliente2.chamadas)  # pessoal relido só após 7 dias
+
+
+def test_despesas_acima_do_limite_vao_por_orgao() -> None:
+    s = Settings(_env_file=None)  # type: ignore[call-arg]
+    cheio = {"resposta": {"status": "OK", "limiteResultado": "1", "conteudo": [EMPENHO]}}
+    por_ug = {"resposta": {"status": "OK", "limiteResultado": "100000", "conteudo": [EMPENHO]}}
+    cliente = ClienteFalso({"DespesasMunicipais": lambda p: por_ug if "ID_UNIDADE_GESTORA" in p else cheio})
+    linhas = pernambuco._despesas(cliente, s, "P042", [169, 170], 2025)  # type: ignore[arg-type]
+    assert len(linhas) == 1 and sum("ID_UNIDADE_GESTORA" in p for _, p in cliente.chamadas) == 2
 
 
 def test_conteudo_tce_erro() -> None:

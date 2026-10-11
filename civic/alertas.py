@@ -121,7 +121,10 @@ TITULOS_TIPO: dict[str, str] = {
     "pix_parado": "Emenda Pix sem gasto registrado",
     "pix_custeio": "Emenda Pix gasta em custeio",
     "pix_gasto_maior": "Gasto com Emenda Pix maior que o recebido",
+    "contrato_capital": "Contratos muito acima do capital social",
 }
+CONTRATO_CAPITAL_FATOR = 10
+CONTRATO_CAPITAL_MINIMO = 100_000_000  # R$ 1 milhão
 
 # Nos cruzamentos, CROSS JOIN fixa a ordem das tabelas no SQLite: primeiro acha o sócio pelo nome
 # (poucos casos) e só então os pagamentos daquele CNPJ, em vez de ler todos os pagamentos da cidade.
@@ -918,6 +921,47 @@ def alertas_emenda_pix(db: Session, s: Settings) -> list[dict[str, Any]]:
     return alertas
 
 
+def alertas_contrato_capital(db: Session, _s: Settings) -> list[dict[str, Any]]:
+    """Fornecedor com contratos no ano, com o mesmo órgão, de pelo menos R$ 1 milhão e 10 vezes
+    o capital social declarado na Receita. Capital baixo não é ilegal, mas indica empresa pequena
+    para o tamanho do compromisso (risco de não entregar, ou de ser intermediária)."""
+    linhas = _linhas(
+        db,
+        """
+        SELECT c.unidade_gestora_id AS pagador, ug.nome AS orgao, c.ano, c.cpf_cnpj AS cnpj,
+               MAX(c.fornecedor) AS fornecedor, SUM(c.valor_centavos) AS valor, COUNT(*) AS qtd,
+               f.capital_social_centavos AS capital, f.razao_social
+        FROM contratos_municipais c
+        JOIN fornecedores f ON f.cnpj = c.cpf_cnpj
+        JOIN unidades_gestoras ug ON ug.id = c.unidade_gestora_id
+        WHERE c.tipo_pessoa = 'PJ' AND f.capital_social_centavos > 0
+        GROUP BY c.unidade_gestora_id, c.ano, c.cpf_cnpj
+        HAVING SUM(c.valor_centavos) >= :minimo AND SUM(c.valor_centavos) >= :fator * f.capital_social_centavos
+        """,
+        minimo=CONTRATO_CAPITAL_MINIMO, fator=CONTRATO_CAPITAL_FATOR,
+    )
+    return [
+        {
+            "tipo": "contrato_capital",
+            "gravidade": "alta" if r["valor"] >= 50 * r["capital"] else "media",
+            "esfera": "municipal",
+            "unidade_gestora_id": r["pagador"],
+            "cnpj": r["cnpj"],
+            "ano": r["ano"],
+            "valor_centavos": r["valor"],
+            "titulo": f"{r['razao_social'] or r['fornecedor']} tem {formatar_brl(r['valor'])} em contratos com "
+                      f"capital social de {formatar_brl(r['capital'])}",
+            "descricao": (
+                f"Em {r['ano']}, a {r['orgao']} assinou {r['qtd']} contrato(s) com a empresa, somando "
+                f"{formatar_brl(r['valor'])} — {r['valor'] / r['capital']:.0f} vezes o capital social declarado na "
+                "Receita. Capital baixo não é irregular, mas vale conferir se a empresa tem estrutura para entregar "
+                "e se não está só intermediando."
+            ),
+        }
+        for r in linhas
+    ]
+
+
 Regra = Callable[[Session, Settings], list[dict[str, Any]]]
 RegraPorFonte = Callable[[Session, Settings, Fonte], list[dict[str, Any]]]
 
@@ -967,6 +1011,7 @@ PESO_TIPO = {
     "servidor_socio": 40, "pix_gasto_maior": 35, "pix_parado": 35, "pix_custeio": 35, "doador_socio": 30,
     "fornecedor_inativo": 25, "eleito_socio": 25, "concentracao": 20, "notas_sequenciais": 20,
     "padrao_atipico": 15, "divulgacao_eleitoral": 15, "mei_acima_limite": 10, "empresa_nova": 10,
+    "contrato_capital": 20,
 }
 
 
@@ -1004,7 +1049,8 @@ def recalcular_alertas(db: Session, settings: Settings) -> dict[str, int]:
             somar(f"{regra_f.__name__.removeprefix('alertas_')} ({nome})", [_com_fonte(a, nome, municipios) for a in novos])
     somar("mei_acima_limite", [_com_fonte(a, a["fonte"], municipios) for a in alertas_mei_acima_limite(db, settings)])
     # Regras de cruzamento já devolvem a esfera e o pagador certos.
-    for regra in (alertas_servidor_socio, alertas_eleito_socio, alertas_doador_socio, alertas_emenda_pix):
+    for regra in (alertas_servidor_socio, alertas_eleito_socio, alertas_doador_socio, alertas_emenda_pix,
+                  alertas_contrato_capital):
         somar(regra.__name__.removeprefix("alertas_"), [_completar(a, municipios) for a in regra(db, settings)])
 
     tipos_por_cnpj: dict[str, set[str]] = defaultdict(set)
