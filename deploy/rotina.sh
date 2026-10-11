@@ -44,6 +44,11 @@ c.execute('PRAGMA optimize')
 c.close()
 " || echo "!! PRAGMA optimize falhou"
 
+# Dados abertos (CSV em data/publico, servidos em /dados/): uma vez por semana, aos domingos.
+if [ "$(date +%u)" = "7" ]; then
+  $python_coleta -m civic.exportar || echo "!! exportação dos dados abertos falhou (ver acima)"
+fi
+
 echo "== $(date -Is) backup"
 destino="data/backups/gastos-$(date +%F).db"
 docker compose run --rm --no-deps --entrypoint python coleta -c "
@@ -54,4 +59,17 @@ origem.backup(copia)
 copia.close(); origem.close()
 " && gzip -f "$destino" && echo "backup: $destino.gz"
 find data/backups -name 'gastos-*.db.gz' -mtime +7 -delete
+
+# Cópia fora do servidor (opcional): BACKUP_REMOTO=remoto:pasta no .env, com o rclone já configurado
+# em ~/.config/rclone (docker run --rm -it -v ~/.config/rclone:/config/rclone rclone/rclone config).
+# Mantém 30 dias no destino.
+backup_remoto=$(grep -E '^BACKUP_REMOTO=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' || true)
+if [ -n "$backup_remoto" ] && [ -f "$destino.gz" ]; then
+  rclone_docker="docker run --rm -v $HOME/.config/rclone:/config/rclone -v $PWD/data/backups:/backups:ro rclone/rclone"
+  $rclone_docker copy "/backups/$(basename "$destino").gz" "$backup_remoto" \
+    && $rclone_docker delete --min-age 30d "$backup_remoto" \
+    && echo "backup remoto: $backup_remoto" || echo "!! cópia do backup para $backup_remoto falhou"
+fi
 echo "== $(date -Is) fim"
+# Avisa no Telegram se algum passo falhou (com TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID no .env).
+$python_coleta -m civic.monitor "/app/data/logs/rotina-$(date +%Y-%m).log" >/dev/null 2>&1 || true
