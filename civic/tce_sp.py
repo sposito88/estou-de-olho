@@ -178,11 +178,12 @@ def municipios_alvo(cliente: ClienteJson, s: Settings) -> list[tuple[str, str]]:
 class Orgaos:
     """Cadastro dos órgãos do TCE-SP em `unidades_gestoras`, criando ids novos conforme aparecem."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, fonte: str = FONTE, uf: str = "SP") -> None:
         self.db = db
+        self.fonte, self.uf = fonte, uf
         self.por_codigo = {
             ug.codigo_origem: ug.id
-            for ug in db.scalars(select(UnidadeGestora).where(UnidadeGestora.fonte == FONTE))
+            for ug in db.scalars(select(UnidadeGestora).where(UnidadeGestora.fonte == fonte))
         }
         maior = db.scalar(select(func.max(UnidadeGestora.id)).where(UnidadeGestora.id >= PRIMEIRO_ID))
         self.proximo = max(int(maior or 0) + 1, PRIMEIRO_ID)
@@ -191,8 +192,9 @@ class Orgaos:
     def ids_do_municipio(self, codigo_municipio: str) -> list[int]:
         return [i for c, i in self.por_codigo.items() if c.startswith(f"{codigo_municipio}|")]
 
-    def obter(self, codigo_municipio: str, orgao: str, natureza: str, ibge: str, nome: str, nome_norm: str) -> int:
-        codigo = f"{codigo_municipio}|{normalizar_nome(orgao)}"
+    def obter(self, codigo_municipio: str, orgao: str, natureza: str, ibge: str, nome: str, nome_norm: str,
+              codigo_orgao: str | None = None) -> int:
+        codigo = f"{codigo_municipio}|{codigo_orgao or normalizar_nome(orgao)}"
         ug_id = self.por_codigo.get(codigo)
         if ug_id is None:
             ug_id, self.proximo = self.proximo, self.proximo + 1
@@ -201,8 +203,8 @@ class Orgaos:
             return ug_id
         self.gravados.add(codigo)
         stmt = sqlite_insert(UnidadeGestora).values(
-            id=ug_id, nome=orgao, natureza=natureza, fonte=FONTE, codigo_origem=codigo,
-            codigo_municipio_tce=ibge, municipio=nome, municipio_normalizado=nome_norm, sigla_uf="SP",
+            id=ug_id, nome=orgao, natureza=natureza, fonte=self.fonte, codigo_origem=codigo,
+            codigo_municipio_tce=ibge, municipio=nome, municipio_normalizado=nome_norm, sigla_uf=self.uf,
         )
         self.db.execute(stmt.on_conflict_do_update(
             index_elements=[UnidadeGestora.id],

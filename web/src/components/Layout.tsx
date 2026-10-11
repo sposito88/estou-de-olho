@@ -109,7 +109,7 @@ export function Layout() {
         <div className="mx-auto max-w-6xl space-y-2 px-4 py-6 text-sm text-muted-foreground sm:px-6">
           <p>
             Dados públicos da Câmara dos Deputados, do Senado Federal, do Portal da Transparência, do PNCP, do Tesouro
-            Nacional (Siconfi), do TSE, da Receita Federal, do IBGE, da ALEPE, do TCE-PE e do TCE-SP.{" "}
+            Nacional (Siconfi), do TSE, da Receita Federal, do IBGE, da ALEPE e dos tribunais de contas de PE, SP e PB.{" "}
             <Link to="/sobre" className="link">
               Como usamos cada fonte
             </Link>

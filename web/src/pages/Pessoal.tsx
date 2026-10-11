@@ -15,6 +15,12 @@ import { useParametros } from "../lib/useParametros";
 import { useSemIndexacao } from "../lib/semIndexacao";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+/** 202608 -> "ago/2026". */
+function mesAno(aaaamm: number | null | undefined): string {
+  if (!aaaamm) return "—";
+  return `${MESES[(aaaamm % 100) - 1]}/${Math.floor(aaaamm / 100)}`;
+}
 const POR_PAGINA = 20;
 
 export function Pessoal() {
@@ -75,12 +81,41 @@ export function Pessoal() {
             />
           </section>
 
-          <p className="rounded-lg bg-muted px-4 py-3 text-sm text-secondary">
-            <strong>Como ler:</strong> a lista do Tribunal de Contas acumula os vínculos informados ao longo dos anos e{" "}
-            <strong>não traz a data de saída</strong>; por isso pode incluir quem já não trabalha mais na prefeitura. O{" "}
-            <strong>salário de cada pessoa não está nos dados abertos</strong>: a folha aparece somada, por secretaria e
-            tipo de vínculo. O valor individual só está no portal de transparência da prefeitura.
-          </p>
+          {d.tem_salarios ? (
+            <p className="rounded-lg bg-muted px-4 py-3 text-sm text-secondary">
+              <strong>Como ler:</strong> o tribunal de contas publica quanto cada pessoa recebeu em cada mês. Mostramos
+              o valor do mês mais recente (bruto, com vantagens) e o total recebido no ano. Quem aparece só em meses
+              antigos pode ter saído.
+            </p>
+          ) : (
+            <p className="rounded-lg bg-muted px-4 py-3 text-sm text-secondary">
+              <strong>Como ler:</strong> a lista do Tribunal de Contas acumula os vínculos informados ao longo dos anos e{" "}
+              <strong>não traz a data de saída</strong>; por isso pode incluir quem já não trabalha mais na prefeitura. O{" "}
+              <strong>salário de cada pessoa não está nos dados abertos</strong>: a folha aparece somada, por secretaria
+              e tipo de vínculo. O valor individual só está no portal de transparência da prefeitura.
+            </p>
+          )}
+
+          {(d.maiores_salarios?.length ?? 0) > 0 && (
+            <Secao
+              id="salarios"
+              titulo="Maiores salários"
+              descricao={`Valor recebido no mês mais recente informado (${mesAno(d.maiores_salarios![0].remuneracao_mes)}), sem a câmara.`}
+            >
+              <ListaBarras
+                rotuloLista="Maiores salários"
+                itens={d.maiores_salarios!.map((p) => ({
+                  chave: `${p.nome}-${p.cargo}-${p.orgao}`,
+                  rotulo: nomeProprio(p.nome),
+                  rotuloTexto: nomeProprio(p.nome),
+                  detalhe: [capitalizar(p.cargo), p.vinculo, p.orgao,
+                            p.remuneracao_ano ? `${formatarBRL(p.remuneracao_ano)} no ano (${plural(p.meses_pagos ?? 0, "mês", "meses")})` : null]
+                    .filter(Boolean).join(" · "),
+                  valor: p.remuneracao ?? 0,
+                }))}
+              />
+            </Secao>
+          )}
 
           {d.doadores_nomeados.length > 0 && (
             <Secao
@@ -165,7 +200,9 @@ export function Pessoal() {
               id="folha"
               titulo={`Custo da folha mês a mês em ${d.ano}`}
               descricao={
-                d.folha_pela_data_do_pagamento
+                d.folha_fonte === "folha"
+                  ? "Soma do que cada pessoa recebeu no mês, segundo a folha informada ao tribunal de contas, por tipo de vínculo."
+                  : d.folha_pela_data_do_pagamento
                   ? "Valor pago com despesas de pessoal, pelo mês em que o dinheiro saiu do caixa."
                   : "Valor pago nos empenhos de pessoal, pelo mês do empenho (a folha costuma ser empenhada de uma vez no início do ano)."
               }
@@ -253,7 +290,8 @@ export function Pessoal() {
           </Secao>
 
           <Secao id="lista" titulo="Lista de pessoal" descricao="Busque por nome ou cargo. Mais recentes primeiro.">
-            <ListaPessoal base={base} vinculos={d.por_vinculo.map((v) => v.nome)} inicioMandato={d.inicio_mandato} />
+            <ListaPessoal base={base} vinculos={d.por_vinculo.map((v) => v.nome)} inicioMandato={d.inicio_mandato}
+                          comSalario={Boolean(d.tem_salarios)} />
           </Secao>
 
           <p className="text-sm text-muted-foreground">
@@ -266,8 +304,18 @@ export function Pessoal() {
   );
 }
 
-function ListaPessoal({ base, vinculos, inicioMandato }: { base: string; vinculos: string[]; inicioMandato: number }) {
-  const { valores, definir, pagina } = useParametros(["busca", "vinculo", "desde"] as const);
+function ListaPessoal({
+  base,
+  vinculos,
+  inicioMandato,
+  comSalario,
+}: {
+  base: string;
+  vinculos: string[];
+  inicioMandato: number;
+  comSalario: boolean;
+}) {
+  const { valores, definir, pagina } = useParametros(["busca", "vinculo", "desde", "ordem"] as const);
   const [texto, setTexto] = useState(valores.busca);
   const id = useId();
   useEffect(() => {
@@ -280,13 +328,14 @@ function ListaPessoal({ base, vinculos, inicioMandato }: { base: string; vinculo
     busca: valores.busca,
     vinculo: valores.vinculo,
     desde: valores.desde,
+    ordem: valores.ordem || undefined,
     limit: POR_PAGINA,
     offset: (pagina - 1) * POR_PAGINA,
   });
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr]">
+      <div className={`grid gap-3 ${comSalario ? "sm:grid-cols-[2fr_1fr_1fr_1fr]" : "sm:grid-cols-[2fr_1fr_1fr]"}`}>
         <div>
           <label htmlFor={id} className="mb-1 block text-sm font-bold text-secondary">Nome ou cargo</label>
           <div className="relative">
@@ -301,6 +350,11 @@ function ListaPessoal({ base, vinculos, inicioMandato }: { base: string; vinculo
                      opcoes={[{ valor: String(inicioMandato), rotulo: `No mandato (desde ${inicioMandato})` },
                               { valor: String(inicioMandato - 4), rotulo: `Desde ${inicioMandato - 4}` }]}
                      onMudar={(desde) => definir({ desde })} />
+        {comSalario && (
+          <CampoSelect rotulo="Ordem" valor={valores.ordem} todos="Mais recentes"
+                       opcoes={[{ valor: "salario", rotulo: "Maiores salários" }]}
+                       onMudar={(ordem) => definir({ ordem })} />
+        )}
       </div>
       {lista.erro ? (
         <ErroApi erro={lista.erro} onTentarDeNovo={lista.recarregar} />
@@ -319,6 +373,7 @@ function ListaPessoal({ base, vinculos, inicioMandato }: { base: string; vinculo
                   <th scope="col" className="px-3 py-2.5 font-bold">Cargo</th>
                   <th scope="col" className="px-3 py-2.5 font-bold">Vínculo</th>
                   <th scope="col" className="px-3 py-2.5 font-bold">Admissão</th>
+                  {comSalario && <th scope="col" className="px-3 py-2.5 text-right font-bold">Salário</th>}
                 </tr>
               </thead>
               <tbody>
@@ -334,6 +389,12 @@ function ListaPessoal({ base, vinculos, inicioMandato }: { base: string; vinculo
                     </td>
                     <td className="px-3 py-2.5">{s.vinculo ?? "—"}</td>
                     <td className="numero whitespace-nowrap px-3 py-2.5">{formatarData(s.data_admissao)}</td>
+                    {comSalario && (
+                      <td className="numero whitespace-nowrap px-3 py-2.5 text-right">
+                        {s.remuneracao ? formatarBRL(s.remuneracao) : "—"}
+                        {s.remuneracao_mes && <span className="block text-muted-foreground">{mesAno(s.remuneracao_mes)}</span>}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

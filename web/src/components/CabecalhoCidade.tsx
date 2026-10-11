@@ -27,7 +27,7 @@ export function CabecalhoCidade({ uf, municipio, nome }: CabecalhoCidadeProps) {
     ...(tce.dados
       ? [
           { para: `${base}/camara`, rotulo: "Câmara de vereadores" },
-          { para: `${base}/prefeitura`, rotulo: "Prefeitura" },
+          ...(tce.dados.anos.length ? [{ para: `${base}/prefeitura`, rotulo: "Prefeitura" }] : []),
           ...(tribunal(tce.dados.por_orgao[0]?.orgao.fonte).pessoal ? [{ para: `${base}/pessoal`, rotulo: "Pessoal" }] : []),
         ]
       : []),

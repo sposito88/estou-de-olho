@@ -494,6 +494,8 @@ class FornecedorMunicipalItem(Schema):
 class VereadorItem(Schema):
     nome: str
     mandato_atual: bool
+    salario: Reais | None = None  # onde o tribunal publica (TCE-PB): valor do mês mais recente
+    salario_mes: int | None = None
     total_recebido: Reais
     qtd_pagamentos: int
     por_tipo: list[NomeTotalItem]
@@ -626,6 +628,31 @@ class DoadorNomeadoItem(Schema):
     eleito: bool
 
 
+class ServidorOut(Schema):
+    nome: str
+    cargo: str | None
+    vinculo: str | None
+    data_admissao: date | None
+    matricula: str | None
+    cpf: str | None
+    orgao: str
+    remuneracao: Reais | None = None  # salário do mês mais recente (onde o tribunal publica)
+    remuneracao_mes: int | None = None  # AAAAMM
+    remuneracao_ano: Reais | None = None
+    meses_pagos: int | None = None
+
+
+class SalarioItem(Schema):
+    nome: str
+    cargo: str | None
+    vinculo: str | None
+    orgao: str | None
+    remuneracao: Reais | None
+    remuneracao_mes: int | None
+    remuneracao_ano: Reais | None
+    meses_pagos: int | None
+
+
 class PessoalMunicipioOut(Schema):
     ano: int | None
     anos: list[int]
@@ -638,22 +665,15 @@ class PessoalMunicipioOut(Schema):
     cargos: list[CargoPessoalItem]
     categorias_folha: list[str]
     folha_pela_data_do_pagamento: bool = False
+    folha_fonte: str = "empenhos"  # folha (salário por pessoa) | pagamentos | empenhos
+    tem_salarios: bool = False
+    maiores_salarios: list[SalarioItem] = []
     folha_por_ano: list[FolhaAnoItem]
     folha_por_mes: list[FolhaMesItem]
     prestadores_total: Reais
     prestadores_qtd: int
     prestadores: list[PrestadorPfItem]
     doadores_nomeados: list[DoadorNomeadoItem]
-
-
-class ServidorOut(Schema):
-    nome: str
-    cargo: str | None
-    vinculo: str | None
-    data_admissao: date | None
-    matricula: str | None
-    cpf: str | None
-    orgao: str
 
 
 class PlanoPixOut(Schema):

@@ -38,6 +38,7 @@ from civic.models import (
     EmendaConvenio,
     EmendaPagamento,
     EnteSiconfi,
+    FolhaMensal,
     Fornecedor,
     Municipio,
     PagamentoMunicipal,
@@ -1139,8 +1140,11 @@ def camara_municipio(db: Session, uf: str, municipio: str, ano: int | None = Non
         if not (v.cargo or "").upper().startswith("VEREADOR"):
             continue
         atual = v.data_admissao is not None and v.data_admissao.year >= inicio
-        item = vereadores.setdefault(v.nome_normalizado, {"nome": v.nome, "mandato_atual": False})
+        item = vereadores.setdefault(v.nome_normalizado, {"nome": v.nome, "mandato_atual": False, "salario": None,
+                                                          "salario_mes": None})
         item["mandato_atual"] = item["mandato_atual"] or atual
+        if v.remuneracao_centavos and (v.remuneracao_mes or 0) >= (item["salario_mes"] or 0):
+            item["salario"], item["salario_mes"] = v.remuneracao_centavos, v.remuneracao_mes
 
     soma = func.sum(DespesaMunicipal.valor_pago_centavos).label("total")
     nominais = db.execute(
@@ -1288,6 +1292,22 @@ CATEGORIAS_FOLHA = (
     ("Outras despesas de pessoal", "Outras Despesas Vari%Pessoal%"),
 )
 ELEMENTO_SERVICO_PF = "Outros Servi%Pessoa F%sica"
+# Onde a folha vem por pessoa (TCE-PB), as categorias são os tipos de vínculo.
+CATEGORIA_VINCULO = (
+    ("Efetivos", ("EFETIVO", "EMPREGO PUBLICO")),
+    ("Comissionados e funções de confiança", ("COMISSIONADO", "FUNCAO DE CONFIANCA")),
+    ("Contratados temporários", ("CONTRATACAO", "EXCEPCIONAL")),
+    ("Eletivos", ("ELETIVO",)),
+    ("Aposentados e pensionistas", ("INATIVO", "PENSION", "BENEFICIO PREVIDENCIARIO")),
+)
+
+
+def _categoria_vinculo(vinculo: str | None) -> str:
+    norm = normalizar_nome(vinculo) or ""
+    for nome, chaves in CATEGORIA_VINCULO:
+        if any(c in norm for c in chaves):
+            return nome
+    return "Outros"
 
 
 def _orgaos_sem_camara(db: Session, uf: str, municipio: str) -> list[UnidadeGestora]:
@@ -1313,6 +1333,7 @@ def pessoal_municipio(db: Session, uf: str, municipio: str, ano: int | None = No
     if not orgaos:
         return None
     ids = [o.id for o in orgaos]
+    nomes_orgaos = {o.id: o.nome for o in orgaos}
     inicio = inicio_mandato_municipal()
 
     # 1. Quadro de pessoal
@@ -1357,9 +1378,29 @@ def pessoal_municipio(db: Session, uf: str, municipio: str, ano: int | None = No
             folha_meses.setdefault(mes, {}).setdefault(categoria, 0)
             folha_meses[mes][categoria] += int(total or 0)
 
+    folha_publicada = db.scalar(
+        select(func.count()).select_from(FolhaMensal).where(FolhaMensal.unidade_gestora_id.in_(ids))
+    ) or 0
+    if folha_publicada:
+        anos_folha = list(db.scalars(select(distinct(FolhaMensal.ano)).where(FolhaMensal.unidade_gestora_id.in_(ids))
+                                     .order_by(FolhaMensal.ano.desc())))
+        anos = sorted(set(anos) | set(anos_folha), reverse=True)
+        ano = ano if ano in anos else anos[0]
+        for a, mes, vinculo, total in db.execute(
+            select(FolhaMensal.ano, FolhaMensal.mes, FolhaMensal.vinculo, func.sum(FolhaMensal.total_centavos))
+            .where(FolhaMensal.unidade_gestora_id.in_(ids))
+            .group_by(FolhaMensal.ano, FolhaMensal.mes, FolhaMensal.vinculo)
+        ):
+            categoria = _categoria_vinculo(vinculo)
+            folha_anos.setdefault(a, {}).setdefault(categoria, 0)
+            folha_anos[a][categoria] += int(total or 0)
+            if a == ano:
+                folha_meses.setdefault(mes, {}).setdefault(categoria, 0)
+                folha_meses[mes][categoria] += int(total or 0)
+
     # A folha é empenhada de uma vez no começo do ano e paga mês a mês: a data do pagamento
     # (TCE-PE, EmpenhoPagamento) mostra o custo real de cada mês.
-    tem_pagamentos = db.scalar(
+    tem_pagamentos = 0 if folha_publicada else db.scalar(
         select(func.count()).select_from(PagamentoMunicipal).where(PagamentoMunicipal.unidade_gestora_id.in_(ids))
     ) or 0
     if tem_pagamentos:
@@ -1376,7 +1417,7 @@ def pessoal_municipio(db: Session, uf: str, municipio: str, ano: int | None = No
             .group_by(ano_pag, mes_pag, DespesaMunicipal.elemento_despesa)
         ):
             somar(a, mes, elemento, total)
-    else:
+    elif not folha_publicada:
         for a, mes, elemento, total in db.execute(
             select(DespesaMunicipal.ano, DespesaMunicipal.mes, DespesaMunicipal.elemento_despesa,
                    func.sum(DespesaMunicipal.valor_pago_centavos))
@@ -1384,8 +1425,9 @@ def pessoal_municipio(db: Session, uf: str, municipio: str, ano: int | None = No
             .group_by(DespesaMunicipal.ano, DespesaMunicipal.mes, DespesaMunicipal.elemento_despesa)
         ):
             somar(a, mes, elemento, total)
-    categorias = [c for c in dict.fromkeys(nome for nome, _ in CATEGORIAS_FOLHA)
-                  if any(v.get(c) for v in folha_anos.values())]  # sem colunas sempre zeradas
+    possiveis = ([nome for nome, _ in CATEGORIA_VINCULO] + ["Outros"]) if folha_publicada \
+        else list(dict.fromkeys(nome for nome, _ in CATEGORIAS_FOLHA))
+    categorias = [c for c in possiveis if any(v.get(c) for v in folha_anos.values())]  # sem colunas sempre zeradas
 
     # 3. Pessoas físicas pagas por serviço (prestadores, locadores de imóveis...)
     filtro_pf = [
@@ -1482,6 +1524,16 @@ def pessoal_municipio(db: Session, uf: str, municipio: str, ano: int | None = No
         ],
         "categorias_folha": categorias,
         "folha_pela_data_do_pagamento": bool(tem_pagamentos),
+        "folha_fonte": "folha" if folha_publicada else ("pagamentos" if tem_pagamentos else "empenhos"),
+        "tem_salarios": any(v.remuneracao_centavos is not None for v in vinculos),
+        "maiores_salarios": [
+            {"nome": v.nome, "cargo": v.cargo, "vinculo": v.vinculo, "orgao": nomes_orgaos.get(v.unidade_gestora_id),
+             "remuneracao": v.remuneracao_centavos, "remuneracao_mes": v.remuneracao_mes,
+             "remuneracao_ano": v.remuneracao_ano_centavos, "meses_pagos": v.meses_pagos}
+            for v in sorted((v for v in vinculos if v.remuneracao_centavos),
+                            key=lambda v: (v.remuneracao_mes or 0, v.remuneracao_centavos or 0), reverse=True)
+            if v.remuneracao_mes == max((x.remuneracao_mes or 0 for x in vinculos), default=0)
+        ][:25],
         "folha_por_ano": [
             {"ano": a, "total": sum(v.values()), "por_categoria": [{"nome": c, "total": v.get(c, 0)} for c in categorias]}
             for a, v in sorted(folha_anos.items(), reverse=True)
@@ -1506,8 +1558,9 @@ def lista_pessoal(
     desde: int | None = None,
     limit: int = 20,
     offset: int = 0,
+    ordem: str = "recentes",
 ) -> tuple[int, list[dict[str, Any]]]:
-    """Vínculos da lista de pessoal (sem a câmara), mais recentes primeiro; busca por nome ou cargo."""
+    """Vínculos da lista de pessoal (sem a câmara): mais recentes primeiro ou maiores salários; busca por nome ou cargo."""
     orgaos = {o.id: o for o in _orgaos_sem_camara(db, uf, municipio)}
     if not orgaos:
         return 0, []
@@ -1521,14 +1574,16 @@ def lista_pessoal(
     if desde:
         filtro.append(ServidorMunicipal.data_admissao >= date(desde, 1, 1))
     total = db.scalar(select(func.count()).select_from(ServidorMunicipal).where(*filtro)) or 0
-    itens = db.scalars(
-        select(ServidorMunicipal).where(*filtro)
-        .order_by(ServidorMunicipal.data_admissao.desc().nulls_last(), ServidorMunicipal.nome)
-        .limit(limit).offset(offset)
+    ordenacao = (
+        (ServidorMunicipal.remuneracao_centavos.desc().nulls_last(), ServidorMunicipal.nome)
+        if ordem == "salario" else (ServidorMunicipal.data_admissao.desc().nulls_last(), ServidorMunicipal.nome)
     )
+    itens = db.scalars(select(ServidorMunicipal).where(*filtro).order_by(*ordenacao).limit(limit).offset(offset))
     return total, [
         {"nome": v.nome, "cargo": v.cargo, "vinculo": v.vinculo, "data_admissao": v.data_admissao,
-         "matricula": v.matricula, "cpf": _cpf_mascarado(v.cpf_meio), "orgao": orgaos[v.unidade_gestora_id].nome}
+         "matricula": v.matricula, "cpf": _cpf_mascarado(v.cpf_meio), "orgao": orgaos[v.unidade_gestora_id].nome,
+         "remuneracao": v.remuneracao_centavos, "remuneracao_mes": v.remuneracao_mes,
+         "remuneracao_ano": v.remuneracao_ano_centavos, "meses_pagos": v.meses_pagos}
         for v in itens
     ]
 

@@ -448,8 +448,9 @@ def create_app() -> FastAPI:
         desde: Annotated[int | None, Query(ge=1950, le=2100, description="admitidos a partir deste ano")] = None,
         limit: Annotated[int, Query(ge=1, le=100)] = 20,
         offset: Offset = 0,
+        ordem: Annotated[Literal["recentes", "salario"], Query()] = "recentes",
     ) -> object:
-        total, itens = queries.lista_pessoal(db, uf.upper(), municipio, busca, vinculo, desde, limit, offset)
+        total, itens = queries.lista_pessoal(db, uf.upper(), municipio, busca, vinculo, desde, limit, offset, ordem)
         return {"total": total, "itens": itens}
 
     @app.get("/api/municipios/{uf}/{municipio}/contratos-tce", response_model=ContratosTceOut, tags=["municípios"])

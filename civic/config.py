@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     tce_sp_municipios: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["todos"])
     tce_sp_req_per_sec: float = Field(default=2.0, gt=0)
 
+    # TCE-PB: quadro de pessoal com salário por servidor e mês, de todos os municípios da Paraíba.
+    tce_pb_url: str = "https://download.tce.pb.gov.br/dados-abertos/dados-consolidados"
+
     # Transferegov: planos e repasses das Emendas Pix (transferências especiais).
     transferegov_url: str = "https://api.transferegov.gestao.gov.br/transferenciasespeciais"
     transferegov_req_per_sec: float = Field(default=2.0, gt=0)
@@ -205,7 +208,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "api_base_url", "api_url", "transparencia_api_url", "cnpj_webdav_url", "site_url",
-        "alepe_url", "alepe_site_url", "alepe_dados_abertos_url", "tce_url", "tce_sp_url", "pncp_url",
+        "alepe_url", "alepe_site_url", "alepe_dados_abertos_url", "tce_url", "tce_sp_url", "tce_pb_url", "pncp_url",
         "senado_dados_abertos_url", "siconfi_url", "tse_cdn_url", "transferegov_url",
     )
     @classmethod

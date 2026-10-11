@@ -30,6 +30,7 @@ export function Camara() {
   const nome = nomeProprio(municipio);
   const periodo = valores.ano ? `em ${valores.ano}` : "nos últimos anos";
   const tce = tribunal(camara.dados?.orgao.fonte);
+  const comSalario = Boolean(camara.dados?.vereadores.some((v) => v.salario));
 
   return (
     <div className="space-y-6">
@@ -92,11 +93,15 @@ export function Camara() {
           {tce.pessoal && (
           <Secao
             id="vereadores"
-            titulo="O que cada vereador recebeu em seu nome"
-            descricao="Diárias, indenizações e outros pagamentos com o vereador como credor. O salário (subsídio) não entra: o TCE-PE só publica a folha somada."
+            titulo={comSalario ? "Vereadores e salário" : "O que cada vereador recebeu em seu nome"}
+            descricao={
+              comSalario
+                ? `Salário (subsídio) do mês mais recente informado ao ${tce.sigla}.`
+                : `Diárias, indenizações e outros pagamentos com o vereador como credor. O salário (subsídio) não entra: o ${tce.sigla} só publica a folha somada.`
+            }
           >
             {camara.dados.vereadores.length === 0 ? (
-              <Vazio>Nenhum vereador encontrado na base de pessoal do TCE-PE.</Vazio>
+              <Vazio>Nenhum vereador encontrado na base de pessoal do {tce.sigla}.</Vazio>
             ) : (
               <ListaBarras
                 rotuloLista="Pagamentos nominais a vereadores"
@@ -106,10 +111,11 @@ export function Camara() {
                   rotuloTexto: nomeProprio(v.nome),
                   detalhe: [
                     v.mandato_atual ? "mandato atual" : "ex-vereador(a)",
+                    v.salario ? `salário ${formatarBRL(v.salario)}/mês` : null,
                     v.qtd_pagamentos ? plural(v.qtd_pagamentos, "pagamento", "pagamentos") : "nenhum pagamento nominal",
                     ...v.por_tipo.map((t) => `${t.nome}: ${formatarBRL(t.total_pago)}`),
-                  ].join(" · "),
-                  valor: v.total_recebido,
+                  ].filter(Boolean).join(" · "),
+                  valor: comSalario ? (v.salario ?? 0) : v.total_recebido,
                 }))}
               />
             )}

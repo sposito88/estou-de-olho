@@ -27,6 +27,8 @@ $coleta transferegov || echo "!! Emendas Pix (Transferegov) terminaram com falha
 if [ "$(date +%u)" = "6" ]; then
   $coleta tce_sp || echo "!! contas municipais do TCE-SP terminaram com falhas (ver acima)"
 fi
+# TCE-PB: quadro de pessoal com salário de todos os municípios da Paraíba (arquivo do ano, ~70 MB).
+$coleta tce_pb || echo "!! pessoal do TCE-PB terminou com falhas (ver acima)"
 # TSE quase não muda depois da eleição: só aos domingos.
 if [ "$(date +%u)" = "7" ]; then
   $coleta tse || echo "!! TSE terminou com falhas (ver acima)"

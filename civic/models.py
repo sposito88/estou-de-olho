@@ -406,6 +406,21 @@ class ContratoMunicipal(Base):
     url_documento: Mapped[str | None] = mapped_column(String(500))
 
 
+class FolhaMensal(Base):
+    """Folha de pagamento somada por órgão, mês e tipo de vínculo (onde o tribunal publica salários)."""
+
+    __tablename__ = "folhas_mensais"
+    __table_args__ = (Index("ix_folha_ug_ano", "unidade_gestora_id", "ano"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    unidade_gestora_id: Mapped[int] = mapped_column(ForeignKey("unidades_gestoras.id"))
+    ano: Mapped[int] = mapped_column(Integer)
+    mes: Mapped[int] = mapped_column(Integer)
+    vinculo: Mapped[str | None] = mapped_column(String(100))
+    qtd: Mapped[int] = mapped_column(Integer, default=0)
+    total_centavos: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
 class ServidorMunicipal(Base):
     """Vínculo de pessoal informado ao TCE-PE (Sagres Pessoal): nome, cargo e vínculo, sem salário."""
 
@@ -423,6 +438,11 @@ class ServidorMunicipal(Base):
     cpf_meio: Mapped[str | None] = mapped_column(String(6))  # 6 dígitos centrais do CPF ("***.063.774-**")
     ano_remessa: Mapped[int | None] = mapped_column(Integer)
     mes_remessa: Mapped[int | None] = mapped_column(Integer)
+    # Onde o tribunal publica salário (TCE-PB): valor do mês mais recente, total e meses pagos no ano.
+    remuneracao_centavos: Mapped[int | None] = mapped_column(BigInteger)
+    remuneracao_mes: Mapped[int | None] = mapped_column(Integer)  # AAAAMM do valor acima
+    remuneracao_ano_centavos: Mapped[int | None] = mapped_column(BigInteger)
+    meses_pagos: Mapped[int | None] = mapped_column(Integer)
 
 
 

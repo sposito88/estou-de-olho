@@ -357,6 +357,8 @@ export interface Camara {
   vereadores: {
     nome: string;
     mandato_atual: boolean;
+    salario?: Reais | null;
+    salario_mes?: number | null;
     total_recebido: Reais;
     qtd_pagamentos: number;
     por_tipo: NomeTotal[];
@@ -559,6 +561,9 @@ export interface PessoalMunicipio {
   cargos: { cargo: string; vinculo: string; pessoas: number }[];
   categorias_folha: string[];
   folha_pela_data_do_pagamento?: boolean;
+  folha_fonte?: "folha" | "pagamentos" | "empenhos";
+  tem_salarios?: boolean;
+  maiores_salarios?: SalarioServidor[];
   folha_por_ano: { ano: number; total: Reais; por_categoria: { nome: string; total: Reais }[] }[];
   folha_por_mes: { mes: number; total: Reais; por_categoria: { nome: string; total: Reais }[] }[];
   prestadores_total: Reais;
@@ -585,7 +590,22 @@ export interface PessoalMunicipio {
   }[];
 }
 
+export interface SalarioServidor {
+  nome: string;
+  cargo: string | null;
+  vinculo: string | null;
+  orgao: string | null;
+  remuneracao: Reais | null;
+  remuneracao_mes: number | null;
+  remuneracao_ano: Reais | null;
+  meses_pagos: number | null;
+}
+
 export interface Servidor {
+  remuneracao?: Reais | null;
+  remuneracao_mes?: number | null;
+  remuneracao_ano?: Reais | null;
+  meses_pagos?: number | null;
   nome: string;
   cargo: string | null;
   vinculo: string | null;
