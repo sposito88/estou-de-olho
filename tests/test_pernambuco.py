@@ -218,6 +218,17 @@ def test_coleta_tce_contratos_pagamentos_e_checkpoint(db: Session) -> None:
     assert not any("ListaServidores" in u for u, _ in cliente2.chamadas)  # pessoal relido só após 7 dias
 
 
+def test_resposta_vazia_nao_apaga_o_que_ja_existe(db: Session) -> None:
+    """A API do TCE-PE já respondeu "OK" sem conteúdo para anos inteiros: os dados ficam."""
+    s = Settings(_env_file=None, tce_municipios="Carpina")  # type: ignore[call-arg]
+    hoje = date(2025, 9, 1)
+    pernambuco.coletar_tce(_tce([EMPENHO]), db, [2025], s, Resumo(), hoje=hoje)  # type: ignore[arg-type]
+    resumo = Resumo()
+    pernambuco.coletar_tce(_tce([]), db, [2025], s, resumo, hoje=hoje)  # type: ignore[arg-type]
+    assert db.scalar(select(func.count()).select_from(DespesaMunicipal)) == 1
+    assert any("devolveu vazio" in f for f in resumo.falhas)
+
+
 def test_despesas_acima_do_limite_vao_por_orgao() -> None:
     s = Settings(_env_file=None)  # type: ignore[call-arg]
     cheio = {"resposta": {"status": "OK", "limiteResultado": "1", "conteudo": [EMPENHO]}}

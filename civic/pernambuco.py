@@ -28,7 +28,7 @@ from typing import Any
 from urllib.parse import quote
 
 import requests
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
@@ -301,10 +301,28 @@ def ano_fechado(ano: int, hoje: date) -> bool:
     return ano < hoje.year - 1 or (ano == hoje.year - 1 and hoje.month > 6)
 
 
+class RespostaVaziaSuspeita(Exception):
+    """A fonte devolveu vazio para algo que já tinha dados: não apaga o que existe."""
+
+
 def _substituir(db: Session, modelo: Any, ids: list[int], ano: int | None, linhas: list[dict[str, Any]]) -> None:
+    """Troca os registros dos órgãos (no ano) pelos novos.
+
+    Se a fonte devolver vazio e já houver registros, mantém tudo e levanta RespostaVaziaSuspeita:
+    APIs fora do ar ou em manutenção às vezes respondem "OK" sem conteúdo, e apagar o que já
+    foi coletado faria dados sumirem do site.
+    """
     filtro = [modelo.unidade_gestora_id.in_(ids)]
     if ano is not None:
         filtro.append(modelo.ano == ano)
+    if not linhas:
+        existentes = db.scalar(select(func.count()).select_from(modelo).where(*filtro)) or 0
+        if existentes:
+            raise RespostaVaziaSuspeita(
+                f"{modelo.__tablename__}: a fonte devolveu vazio{f' para {ano}' if ano else ''}; "
+                f"mantidos os {existentes} registros que já existiam"
+            )
+        return
     db.execute(delete(modelo).where(*filtro))
     for lote in em_lotes(linhas, 2_000):
         db.execute(insert(modelo), list(lote))
@@ -377,10 +395,16 @@ def coletar_tce(
                                          {"ID_UNIDADE_GESTORA": ug, "ANOREFERENCIA": ano})
                     pagamentos += [pagamento_do_tce(i) for i in itens if int(i["ID_UNIDADE_GESTORA"]) == ug]
                 contratos = _contratos(cliente, s, info["nome_tce"], ids, ano)
-                _substituir(db, DespesaMunicipal, ids, ano, despesas)
-                _substituir(db, PagamentoMunicipal, ids, ano, pagamentos)
-                _substituir(db, ContratoMunicipal, ids, ano, contratos)
-                if ano_fechado(ano, hoje):
+                vazios = []
+                for modelo, linhas in ((DespesaMunicipal, despesas), (PagamentoMunicipal, pagamentos),
+                                       (ContratoMunicipal, contratos)):
+                    try:
+                        _substituir(db, modelo, ids, ano, linhas)
+                    except RespostaVaziaSuspeita as aviso:
+                        vazios.append(str(aviso))
+                if vazios:
+                    resumo.registrar_falha(f"TCE-PE {nome}/{ano}", RespostaVaziaSuspeita("; ".join(vazios)))
+                elif ano_fechado(ano, hoje):
                     marcar(FONTE_TCE, codigo, ano, len(despesas))
                 db.commit()
                 total += len(despesas)

@@ -247,6 +247,12 @@ def coletar_municipio_ano(
         ug = orgaos.obter(codigo, soma.orgao, natureza, ibge, nome, nome_norm)
         linhas.append(linha_da_soma(soma, ug, ano))
     ids = orgaos.ids_do_municipio(codigo)
+    if ids and not linhas:
+        existentes = db.scalar(select(func.count()).select_from(DespesaMunicipal).where(
+            DespesaMunicipal.unidade_gestora_id.in_(ids), DespesaMunicipal.ano == ano)) or 0
+        if existentes:
+            # API fora do ar responde vazio: não apaga o que já foi coletado.
+            raise ValueError(f"TCE-SP devolveu vazio para {nome}/{ano}; mantidos {existentes} registros")
     if ids:
         db.execute(delete(DespesaMunicipal).where(DespesaMunicipal.unidade_gestora_id.in_(ids),
                                                   DespesaMunicipal.ano == ano))
