@@ -23,9 +23,10 @@ $coleta siconfi || echo "!! contas do Siconfi terminaram com falhas (ver acima)"
 # Ano corrente pelo relatório bimestral (RREO): só consulta quem ainda não tem o bimestre esperado.
 $coleta siconfi python -m civic.siconfi --rreo --sem-progresso || echo "!! RREO do Siconfi terminou com falhas (ver acima)"
 $coleta transferegov || echo "!! Emendas Pix (Transferegov) terminaram com falhas (ver acima)"
-# TCE-SP: 644 municípios, relê o ano corrente inteiro (~2 h): só aos sábados.
+# TCE-SP (644 municípios, ~2 h) e TCE-RS (497 municípios, arquivo anual de ~1,4 GB): só aos sábados.
 if [ "$(date +%u)" = "6" ]; then
   $coleta tce_sp || echo "!! contas municipais do TCE-SP terminaram com falhas (ver acima)"
+  $coleta tce_rs || echo "!! contas municipais do TCE-RS terminaram com falhas (ver acima)"
 fi
 # TCE-PB: quadro de pessoal com salário de todos os municípios da Paraíba (arquivo do ano, ~70 MB).
 $coleta tce_pb || echo "!! pessoal do TCE-PB terminou com falhas (ver acima)"

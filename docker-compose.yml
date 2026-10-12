@@ -90,6 +90,11 @@ services:
     profiles: ["coleta"]
     command: ["python", "-m", "civic.transferegov"]
 
+  tce_rs:
+    <<: *python
+    profiles: ["coleta"]
+    command: ["python", "-m", "civic.tce_rs", "--sem-progresso"]
+
   tce_pb:
     <<: *python
     profiles: ["coleta"]

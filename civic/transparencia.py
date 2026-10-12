@@ -3,7 +3,7 @@
 Para cada município:
 - RREO (relatório bimestral ao Tesouro): último bimestre entregue no ano corrente × o esperado;
 - DCA (balanço anual) do ano anterior: entregue ou não (prazo: 30 de abril);
-- tribunal de contas (onde coletamos: PE, SP, PB): último mês com dados informados;
+- tribunal de contas (onde coletamos: PE, SP, RS, PB): último mês com dados informados;
 - PNCP: data do último contrato publicado;
 - observações verificadas à mão (portal fora do ar, bloqueado, desatualizado), em `dados/observacoes_portais.json`.
 

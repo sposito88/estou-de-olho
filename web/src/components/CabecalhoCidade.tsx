@@ -84,7 +84,7 @@ export function SemDadosMunicipais({ nome }: { nome: string }) {
   return (
     <p className="rounded-lg bg-muted px-4 py-3 text-secondary">
       Ainda não coletamos as contas da prefeitura e da câmara de {nome}. Por enquanto aparecem aqui os municípios de
-      São Paulo (TCE-SP, exceto a capital) e os de Pernambuco configurados no sistema (TCE-PE). Os contratos (aba
+      Pernambuco (TCE-PE), São Paulo (TCE-SP, exceto a capital), Rio Grande do Sul (TCE-RS) e Paraíba (TCE-PB, pessoal). Os contratos (aba
       Contratos) e as contas anuais (aba Contas) valem para todo o Brasil.
     </p>
   );

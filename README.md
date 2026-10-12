@@ -16,6 +16,7 @@ Coleta, guarda e mostra **quanto cada deputado federal gastou da Cota Parlamenta
 - **Emenda Pix** (transferência especial), em todo o Brasil: o que chegou a cada município, o plano de ação declarado no Transferegov (objeto, metas, custeio × investimento, relatório de gestão) e, onde o tribunal de contas publica a fonte de recurso (TCE-PE), o que a prefeitura informou como gasto com esse dinheiro.
 - **Pessoal da prefeitura** (TCE-PE): lista de vínculos (nome, cargo, vínculo, admissão), custo da folha mês a mês pela data do pagamento, pessoas físicas pagas por serviço ou aluguel e nomeados no mandato que doaram para campanhas de 2024 no município.
 - **Contas do ano corrente**: relatório bimestral (RREO) do Siconfi, com orçamento, empenhado e liquidado por área até o último bimestre.
+- **Rio Grande do Sul**: despesas de prefeituras, câmaras e órgãos dos 497 municípios (TCE-RS), com histórico, função, elemento e fonte de recurso, somadas por órgão, credor e elemento em cada ano.
 - **Paraíba**: quadro de pessoal dos 223 municípios com o **salário de cada servidor** (TCE-PB), folha mês a mês por tipo de vínculo e subsídio dos vereadores.
 - **São Paulo**: despesas da prefeitura, da câmara e da administração indireta dos 644 municípios do TCE-SP (todos menos a capital), somadas por órgão e credor em cada ano.
 - **Brasil (Fase 1)**: contratos de todas as prefeituras e câmaras (PNCP), contas anuais de todos os municípios (Siconfi), eleitos de 2022 e 2024 com bens declarados (TSE), cota dos senadores (CEAPS) e quadro de sócios dos fornecedores (Receita), com alertas de servidor ou eleito sócio de fornecedor.
@@ -36,6 +37,7 @@ gastos-camara/
 │   ├── pernambuco.py # verba da ALEPE e contas municipais do TCE-PE, e CLI
 │   ├── tce_sp.py     # despesas municipais do TCE-SP (órgão × credor × ano), e CLI
 │   ├── tce_pb.py     # pessoal com salário dos municípios da Paraíba (TCE-PB), e CLI
+│   ├── tce_rs.py     # despesas dos municípios gaúchos (TCE-RS), e CLI
 │   ├── transferegov.py # Emendas Pix: planos, metas e repasses (Transferegov), e CLI
 │   ├── pncp.py       # contratos públicos do PNCP (todos os municípios), e CLI
 │   ├── siconfi.py    # contas anuais (DCA) de todos os municípios, e CLI
@@ -93,6 +95,7 @@ python -m civic.pncp                    # contratos municipais desde 2024 (~1 di
 python -m civic.siconfi --rreo          # ano corrente pelo RREO bimestral (~30 min na 1ª vez por bimestre)
 python -m civic.transferegov            # Emendas Pix do Brasil todo (~8 min)
 python -m civic.tce_pb                  # pessoal com salário da Paraíba (~3 min)
+python -m civic.tce_rs                  # despesas do Rio Grande do Sul (~1,4 GB por ano; ~15 min por ano)
 
 # 1d. Base de CNPJ e sócios da Receita (mensal; ~50 min e ~8 GB de download na primeira vez)
 python -m civic.cnpj

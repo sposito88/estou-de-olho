@@ -7,7 +7,7 @@ export function Sobre() {
         <h1 className="text-3xl font-bold text-primary">Sobre os dados</h1>
         <p className="text-lg text-secondary">
           Tudo aqui vem de dados abertos oficiais: Câmara, Senado, Portal da Transparência, PNCP, Tesouro Nacional,
-          TSE, Receita Federal, IBGE, ALEPE, TCE-PE, TCE-SP e TCE-PB. Nada é estimado: os números são somas dos registros publicados.
+          TSE, Receita Federal, IBGE, ALEPE e tribunais de contas de PE, SP, RS e PB. Nada é estimado: os números são somas dos registros publicados.
         </p>
       </header>
 
@@ -85,6 +85,12 @@ export function Sobre() {
           As contas da <strong>prefeitura e da câmara de vereadores</strong> vêm da API de dados abertos do Tribunal
           de Contas de Pernambuco (TCE-PE): cada empenho, com credor, valor empenhado e pago e o histórico. A lista de
           vereadores e de pessoal nomeado vem da base Sagres Pessoal do mesmo tribunal.
+        </p>
+        <p>
+          No <strong>Rio Grande do Sul</strong>, o TCE-RS publica um arquivo por ano com cada empenho, liquidação e
+          pagamento de todos os órgãos municipais. Somamos por órgão, credor e elemento de despesa, guardando o histórico,
+          a função e a fonte de recurso do maior empenho de cada grupo. O CPF de pessoa física vem completo no arquivo e
+          é mascarado antes de ser gravado.
         </p>
         <p>
           Na <strong>Paraíba</strong>, o Tribunal de Contas do Estado (TCE-PB) publica a folha de pessoal de todos os

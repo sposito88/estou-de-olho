@@ -10,6 +10,7 @@ export interface Tribunal {
 
 const TRIBUNAIS: Record<string, Tribunal> = {
   "TCE-PE": { sigla: "TCE-PE", nome: "Tribunal de Contas de Pernambuco", porEmpenho: true, pessoal: true },
+  "TCE-RS": { sigla: "TCE-RS", nome: "Tribunal de Contas do Estado do Rio Grande do Sul", porEmpenho: true, pessoal: false },
   "TCE-PB": { sigla: "TCE-PB", nome: "Tribunal de Contas do Estado da Paraíba", porEmpenho: false, pessoal: true },
   "TCE-SP": { sigla: "TCE-SP", nome: "Tribunal de Contas do Estado de São Paulo", porEmpenho: false, pessoal: false },
 };
