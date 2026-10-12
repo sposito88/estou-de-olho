@@ -58,7 +58,11 @@ export function Painel() {
             contrato ou o empenho, e com sinais de alerta quando algo foge do padrão.
           </p>
           <div className="max-w-3xl">
-            <CampoBusca rotulo="Busque o nome de uma pessoa ou empresa e veja onde ela aparece" grande />
+            <CampoBusca
+            rotulo="Busque o nome de uma pessoa ou empresa e veja onde ela aparece"
+            placeholder="Empresa, servidor, vereador ou CNPJ"
+            grande
+          />
           </div>
           <div className="flex flex-wrap gap-3">
             <Link to={cidade} className="btn-primary">
