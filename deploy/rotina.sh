@@ -3,7 +3,7 @@
 #   1. coleta da cota e das emendas (envia avisos do Telegram);
 #   1b. verba dos deputados estaduais (ALEPE) e contas municipais (TCE-PE; TCE-SP aos sábados);
 #   2. base de CNPJ da Receita (só trabalha quando sai um mês novo);
-#   3. alertas (uma vez só, no fim), índice da busca por nome e estatísticas do banco;
+#   3. alertas (uma vez só, no fim) e índice da busca por nome;
 #   4. backup do banco (guarda os últimos 7 dias).
 # Uso: deploy/rotina.sh            (o cron chama assim)
 set -uo pipefail
@@ -38,14 +38,18 @@ $coleta cnpj || echo "!! base de CNPJ falhou (ver acima)"
 
 
 echo "== $(date -Is) alertas e busca"
-$python_coleta -m civic.alertas || echo "!! recálculo dos alertas falhou (ver acima)"
-$python_coleta -m civic.busca || echo "!! índice de busca falhou (ver acima)"
+# Incorpora o log de transações (WAL) ao banco antes das consultas pesadas: depois de coletas longas ele
+# pode passar de 10 GB e deixar toda leitura lenta.
 $python_coleta -c "
 import sqlite3
 c = sqlite3.connect('/app/data/gastos.db', timeout=600)
-c.execute('PRAGMA optimize')
+print('checkpoint:', c.execute('PRAGMA wal_checkpoint(TRUNCATE)').fetchone())
 c.close()
-" || echo "!! PRAGMA optimize falhou"
+" || echo "!! checkpoint do WAL falhou"
+$python_coleta -m civic.alertas || echo "!! recálculo dos alertas falhou (ver acima)"
+$python_coleta -m civic.busca || echo "!! índice de busca falhou (ver acima)"
+# Sem ANALYZE/PRAGMA optimize: as consultas foram afinadas sem estatísticas, e com elas o SQLite chegou a
+# escolher planos milhares de vezes mais lentos (alertas que levavam segundos passaram de horas).
 
 # Dados abertos (CSV em data/publico, servidos em /dados/): uma vez por semana, aos domingos.
 if [ "$(date +%u)" = "7" ]; then

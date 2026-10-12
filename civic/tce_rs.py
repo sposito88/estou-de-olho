@@ -218,6 +218,7 @@ def natureza_rs(codigo: str, nome: str) -> str | None:
 
 
 def carregar_ano(db: Session, s: Settings, ano: int, caminho: Path, por_codigo: dict[int, str], resumo: Resumo) -> int:
+    db.rollback()  # idem: a agregação lê o arquivo por vários minutos
     grupos, nomes_orgaos = agregar(linhas_do_zip(caminho))
     if not grupos:
         raise ValueError(f"Arquivo do TCE-RS de {ano} veio vazio; nada foi substituído")
@@ -276,6 +277,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     total = 0
     with SessionLocal() as db:
         feitos = set(db.scalars(select(SyncMunicipioAno.ano).where(SyncMunicipioAno.fonte == FONTE)))
+        db.rollback()  # não segura uma leitura aberta durante download e processamento (trava o checkpoint do WAL)
         try:
             por_codigo = municipios_rs(sessao, s)
         except Exception as exc:  # noqa: BLE001

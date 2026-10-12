@@ -117,6 +117,7 @@ def agregar(linhas: Iterator[dict[str, str]]) -> tuple[dict[tuple[str, str, str]
 
 
 def carregar_ano(db: Session, s: Settings, ano: int, caminho: Path, resumo: Resumo) -> int:
+    db.rollback()  # não segura leitura aberta enquanto lê o arquivo
     pessoas, folha = agregar(linhas_do_zip(caminho))
     if not pessoas:
         raise ValueError(f"Arquivo do TCE-PB de {ano} veio vazio; nada foi substituído")
