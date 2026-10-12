@@ -10,6 +10,13 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p data/backups data/logs
 exec >>"data/logs/rotina-$(date +%Y-%m).log" 2>&1
+# Uma rotina por vez, e nunca junto com uma tarefa pedida pelo Telegram (deploy/bot_admin.py):
+# espera até 2 h pela outra terminar.
+exec 9>/tmp/estoudeolho-rotina.lock
+if ! flock -w 7200 9; then
+  echo "== $(date -Is) rotina não rodou: outra execução ocupou a trava por mais de 2 h"
+  exit 1
+fi
 
 echo "== $(date -Is) início"
 # Cada coleta deixa de recalcular os alertas; o recálculo roda uma vez só, no fim.
