@@ -1,5 +1,6 @@
 import { AlertTriangle, ArrowRight, FileText, Landmark, MapPin, Users, Wallet } from "lucide-react";
 import { CampoBusca } from "../components/CampoBusca";
+import { ChamadaTelegram } from "../components/ChamadaTelegram";
 import { Link } from "react-router";
 import { CampoSelect, opcoesSimples } from "../components/Campos";
 import { Carregando, ErroApi, Vazio } from "../components/Estado";
@@ -9,7 +10,7 @@ import { Secao } from "../components/Secao";
 import { StatCard } from "../components/StatCard";
 import { TabelaDespesas } from "../components/TabelaDespesas";
 import { useApi } from "../lib/api";
-import { MUNICIPIO_PADRAO, TELEGRAM_CANAL } from "../lib/config";
+import { MUNICIPIO_PADRAO } from "../lib/config";
 import { capitalizar, formatarBRL, rotuloDespesa, formatarInteiro, partidoUf, plural } from "../lib/format";
 import type {
   DespesaComDeputado,
@@ -46,35 +47,29 @@ export function Painel() {
 
   return (
     <div className="space-y-6">
-      <section aria-labelledby="titulo-pagina" className="space-y-4 pb-2">
-        <h1 id="titulo-pagina" className="max-w-3xl text-3xl font-bold leading-tight text-primary sm:text-4xl">
-          Para onde vai o dinheiro público
-        </h1>
-        <p className="max-w-3xl text-lg text-secondary">
-          Acompanhe o que gastam deputados federais, senadores e deputados estaduais, os contratos e as contas das
-          prefeituras e câmaras de todo o Brasil e o dinheiro de emenda que chegou à sua cidade. Sempre com a nota, o
-          contrato ou o empenho, e com sinais de alerta quando algo foge do padrão.
-        </p>
-        <div className="max-w-3xl">
-          <CampoBusca rotulo="Busque o nome de uma pessoa ou empresa e veja onde ela aparece" grande />
-        </div>
-        {TELEGRAM_CANAL && (
-          <p className="text-secondary">
-            Receba os alertas mais fortes no{" "}
-            <a href={TELEGRAM_CANAL} className="link" target="_blank" rel="noopener noreferrer">
-              canal do Estou de Olho no Telegram
-            </a>
-            .
+      <section aria-labelledby="titulo-pagina" className="grid items-start gap-8 pb-2 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-4">
+          <h1 id="titulo-pagina" className="max-w-3xl text-3xl font-bold leading-tight text-primary sm:text-4xl">
+            Para onde vai o dinheiro público
+          </h1>
+          <p className="max-w-3xl text-lg text-secondary">
+            Acompanhe o que gastam deputados federais, senadores e deputados estaduais, os contratos e as contas das
+            prefeituras e câmaras de todo o Brasil e o dinheiro de emenda que chegou à sua cidade. Sempre com a nota, o
+            contrato ou o empenho, e com sinais de alerta quando algo foge do padrão.
           </p>
-        )}
-        <div className="flex flex-wrap gap-3">
-          <Link to={cidade} className="btn-primary">
-            <MapPin aria-hidden className="size-5" /> Ver {MUNICIPIO_PADRAO.nome}
-          </Link>
-          <Link to="/alertas" className="btn-secondary">
-            <AlertTriangle aria-hidden className="size-5" /> Ver sinais de alerta
-          </Link>
+          <div className="max-w-3xl">
+            <CampoBusca rotulo="Busque o nome de uma pessoa ou empresa e veja onde ela aparece" grande />
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link to={cidade} className="btn-primary">
+              <MapPin aria-hidden className="size-5" /> Ver {MUNICIPIO_PADRAO.nome}
+            </Link>
+            <Link to="/alertas" className="btn-secondary">
+              <AlertTriangle aria-hidden className="size-5" /> Ver sinais de alerta
+            </Link>
+          </div>
         </div>
+        <ChamadaTelegram />
       </section>
 
       <nav aria-label="Áreas do site">
