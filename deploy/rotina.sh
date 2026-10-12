@@ -48,6 +48,8 @@ c.close()
 " || echo "!! checkpoint do WAL falhou"
 $python_coleta -m civic.alertas || echo "!! recálculo dos alertas falhou (ver acima)"
 $python_coleta -m civic.busca || echo "!! índice de busca falhou (ver acima)"
+# Canal público do Telegram: resumo dos alertas fortes surgidos desde o último resumo.
+$python_coleta -m civic.canal || echo "!! resumo do canal do Telegram falhou (ver acima)"
 # Sem ANALYZE/PRAGMA optimize: as consultas foram afinadas sem estatísticas, e com elas o SQLite chegou a
 # escolher planos milhares de vezes mais lentos (alertas que levavam segundos passaram de horas).
 

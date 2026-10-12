@@ -1,6 +1,7 @@
 import { Check, Copy, Rss } from "lucide-react";
 import { useState } from "react";
 import { montarUrl } from "../lib/api";
+import { TELEGRAM_CANAL } from "../lib/config";
 
 interface SeguirProps {
   /** Filtros do feed de alertas: municipio_ibge, cnpj, deputado_id, senador_id ou deputado_estadual_id. */
@@ -20,6 +21,13 @@ export function Seguir({ filtro, titulo }: SeguirProps) {
       </button>
       {aberto && (
         <div className="mt-2 max-w-xl space-y-2 rounded-lg border border-border bg-card p-3 text-primary">
+          {TELEGRAM_CANAL && (
+            <p>
+              Os alertas mais fortes de todo o país saem no{" "}
+              <a href={TELEGRAM_CANAL} className="link" target="_blank" rel="noopener noreferrer">canal do Telegram</a>.
+              Para acompanhar só este caso:
+            </p>
+          )}
           <p>
             Receba os alertas novos de <strong>{titulo}</strong> num leitor de RSS (Feedly, Inoreader, o app de notícias do
             celular) ou por e-mail, colando este endereço num serviço como Blogtrottr ou FeedRabbit:

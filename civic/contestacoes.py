@@ -18,7 +18,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from civic.avisos import enviar_telegram
+from civic.avisos import enviar_admin
 from civic.config import Settings
 from civic.models import Contestacao
 
@@ -65,7 +65,7 @@ def registrar(db: Session, dados: dict[str, Any], ip: str | None, s: Settings) -
     )
     db.add(item)
     db.commit()
-    enviar_telegram(
+    enviar_admin(
         "\n".join([
             f"<b>📨 Nova contestação {item.protocolo}</b> ({html.escape(TIPOS[item.tipo])})",
             f"Página: {html.escape(s.site_url + item.url)}",

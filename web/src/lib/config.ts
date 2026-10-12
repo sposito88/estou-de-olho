@@ -8,6 +8,9 @@ export const MUNICIPIO_PADRAO = {
   nome: import.meta.env.VITE_MUNICIPIO_PADRAO_NOME ?? "Carpina",
 };
 
+/** Canal público no Telegram (vazio esconde os links). */
+export const TELEGRAM_CANAL = import.meta.env.VITE_TELEGRAM_CANAL ?? "https://t.me/estoudeolho1";
+
 export const CACHE_TTL_MS = 10 * 60 * 1000;
 
 export const LINKS_EXTERNOS = {

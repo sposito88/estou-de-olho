@@ -127,7 +127,9 @@ class Settings(BaseSettings):
     # Avisos no Telegram quando chegar pagamento de emenda nos municípios monitorados.
     telegram_api_url: str = "https://api.telegram.org"
     telegram_bot_token: SecretStr | None = None
-    telegram_chat_id: str | None = None
+    telegram_chat_id: str | None = None  # canal público (ex.: @estoudeolho1): emendas e resumo de alertas
+    telegram_admin_chat_id: str | None = None  # conversa privada da equipe: falhas da rotina e contestações
+    canal_min_prioridade: int = Field(default=60, ge=0, le=100)
     municipios_monitorados: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["PE/CARPINA"])
     site_url: str = "http://localhost:5173"
 

@@ -2,7 +2,7 @@ import { Eye, Menu, X } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { useApi } from "../lib/api";
-import { MUNICIPIO_PADRAO } from "../lib/config";
+import { MUNICIPIO_PADRAO, TELEGRAM_CANAL } from "../lib/config";
 import { formatarDataHora } from "../lib/format";
 import { Carregando } from "./Estado";
 import { RespostasPublicas } from "./Contestar";
@@ -124,6 +124,11 @@ export function Layout() {
             <Link to="/correcoes" className="link">Correções e respostas</Link>
             <Link to="/privacidade" className="link">Privacidade (LGPD)</Link>
             <Link to="/dados-abertos" className="link">Dados abertos e código</Link>
+            {TELEGRAM_CANAL && (
+              <a href={TELEGRAM_CANAL} className="link" target="_blank" rel="noopener noreferrer">
+                Canal no Telegram
+              </a>
+            )}
           </p>
         </div>
       </footer>

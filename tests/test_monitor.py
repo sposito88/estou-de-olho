@@ -21,7 +21,7 @@ def test_le_so_a_ultima_execucao_e_acha_falhas(tmp_path: Path, monkeypatch) -> N
     assert monitor.falhas(linhas) == ["!! contratos do PNCP terminaram com falhas (ver acima)",
                                       "Traceback (most recent call last):"]
     enviados: list[str] = []
-    monkeypatch.setattr(monitor, "enviar_telegram", lambda texto, s: enviados.append(texto) or True)
+    monkeypatch.setattr(monitor, "enviar_admin", lambda texto, s: enviados.append(texto) or True)
     arquivo = tmp_path / "rotina.log"
     arquivo.write_text(LOG, encoding="utf-8")
     assert monitor.main([str(arquivo)]) == 1

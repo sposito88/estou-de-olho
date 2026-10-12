@@ -50,19 +50,22 @@ def montar_mensagens(novos: Sequence[EmendaPagamento], site_url: str) -> list[st
     return mensagens
 
 
-def enviar_telegram(texto: str, settings: Settings, sessao: requests.Session | None = None) -> bool:
-    """Envia uma mensagem (HTML do Telegram) ao chat configurado. Sem bot configurado, não faz nada.
+def enviar_telegram(
+    texto: str, settings: Settings, sessao: requests.Session | None = None, chat_id: str | None = None
+) -> bool:
+    """Envia uma mensagem (HTML do Telegram) ao canal público (ou a `chat_id`). Sem bot configurado, não faz nada.
 
     Falhas são registradas no log sem expor o token (que vai na URL).
     """
-    if settings.telegram_bot_token is None or not settings.telegram_chat_id:
+    destino = chat_id or settings.telegram_chat_id
+    if settings.telegram_bot_token is None or not destino:
         return False
     sessao = sessao or requests.Session()
     url = f"{settings.telegram_api_url}/bot{settings.telegram_bot_token.get_secret_value()}/sendMessage"
     try:
         resposta = sessao.post(
             url,
-            json={"chat_id": settings.telegram_chat_id, "text": texto, "parse_mode": "HTML",
+            json={"chat_id": destino, "text": texto, "parse_mode": "HTML",
                   "disable_web_page_preview": True},
             timeout=settings.timeout,
         )
@@ -72,6 +75,14 @@ def enviar_telegram(texto: str, settings: Settings, sessao: requests.Session | N
         status = getattr(getattr(exc, "response", None), "status_code", None)
         logger.error("Falha ao enviar aviso ao Telegram (%s, status %s)", type(exc).__name__, status)
         return False
+
+
+def enviar_admin(texto: str, settings: Settings, sessao: requests.Session | None = None) -> bool:
+    """Aviso interno (falha da rotina, contestação nova): só para a conversa privada da equipe, nunca o canal."""
+    if not settings.telegram_admin_chat_id:
+        logger.info("Aviso interno não enviado: TELEGRAM_ADMIN_CHAT_ID não configurado")
+        return False
+    return enviar_telegram(texto, settings, sessao, chat_id=settings.telegram_admin_chat_id)
 
 
 def notificar_telegram(

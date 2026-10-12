@@ -17,7 +17,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from civic.avisos import enviar_telegram
+from civic.avisos import enviar_admin
 from civic.config import get_settings
 
 INICIO = re.compile(r"^== (\S+) início")
@@ -60,7 +60,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     texto = mensagem(quando, linhas, problemas)
     print(re.sub(r"<[^>]+>", "", texto))
     if problemas or args.sempre:
-        enviar_telegram(texto, get_settings())
+        enviar_admin(texto, get_settings())
     return 1 if problemas else 0
 
 

@@ -9,7 +9,7 @@ import { Secao } from "../components/Secao";
 import { StatCard } from "../components/StatCard";
 import { TabelaDespesas } from "../components/TabelaDespesas";
 import { useApi } from "../lib/api";
-import { MUNICIPIO_PADRAO } from "../lib/config";
+import { MUNICIPIO_PADRAO, TELEGRAM_CANAL } from "../lib/config";
 import { capitalizar, formatarBRL, rotuloDespesa, formatarInteiro, partidoUf, plural } from "../lib/format";
 import type {
   DespesaComDeputado,
@@ -58,6 +58,15 @@ export function Painel() {
         <div className="max-w-3xl">
           <CampoBusca rotulo="Busque o nome de uma pessoa ou empresa e veja onde ela aparece" grande />
         </div>
+        {TELEGRAM_CANAL && (
+          <p className="text-secondary">
+            Receba os alertas mais fortes no{" "}
+            <a href={TELEGRAM_CANAL} className="link" target="_blank" rel="noopener noreferrer">
+              canal do Estou de Olho no Telegram
+            </a>
+            .
+          </p>
+        )}
         <div className="flex flex-wrap gap-3">
           <Link to={cidade} className="btn-primary">
             <MapPin aria-hidden className="size-5" /> Ver {MUNICIPIO_PADRAO.nome}
