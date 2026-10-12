@@ -20,6 +20,8 @@ import sys
 from collections.abc import Sequence
 from datetime import datetime
 
+import requests
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -77,26 +79,72 @@ def montar_resumo(db: Session, s: Settings, desde: datetime) -> str | None:
 
 
 def apresentacao(s: Settings) -> str:
+    site = html.escape(s.site_url)
     return "\n".join([
-        "<b>👁 Estou de Olho</b>",
+        "<b>👁 Bem-vindo ao Estou de Olho</b>",
         "",
-        "Auditoria cidadã do dinheiro público, com dados oficiais abertos: cota de deputados e senadores, "
-        "emendas e Emenda Pix, prefeituras, câmaras, contratos e pessoal.",
+        "Um projeto cidadão, aberto e sem fins lucrativos, que junta os dados oficiais sobre o dinheiro público "
+        "e mostra, em linguagem simples, <b>quem recebeu, quanto e por quê</b>.",
         "",
-        "Aqui no canal você recebe:",
-        "• os sinais de alerta mais fortes que aparecerem nos dados;",
-        "• avisos quando chega dinheiro de emenda nas cidades acompanhadas.",
+        "<b>O que acompanhamos</b>",
+        "• Cota de deputados federais e senadores, nota por nota",
+        "• Emendas parlamentares e Emenda Pix que chegam a cada cidade",
+        "• Gastos de prefeituras e câmaras (PE, SP, RS e PB), contratos de todo o país e as contas dos 5.570 municípios",
+        "• Pessoal das prefeituras e, na Paraíba, o salário de cada servidor",
         "",
-        f"Busque qualquer empresa ou pessoa pública: {html.escape(s.site_url)}/busca",
-        f"Veja sua cidade: {html.escape(s.site_url)}/cidade",
+        "<b>O que chega aqui no canal</b>",
+        "🔎 Os sinais de alerta mais fortes, quando aparecem nos dados: empresa aberta pouco antes de receber, "
+        "contrato muito acima do capital da empresa, Emenda Pix parada ou gasta fora da regra, entre outros",
+        "💰 Aviso quando chega dinheiro de emenda nas cidades acompanhadas",
+        "No máximo um resumo por dia, só quando há novidade.",
         "",
-        "<i>Alerta não é acusação. Viu um erro? Use “Contestar ou corrigir” no site.</i>",
+        "<b>Use o site</b>",
+        f"• Busque qualquer empresa ou pessoa pública: {site}/busca",
+        f"• Veja a sua cidade: {site}/cidade",
+        f"• Quem está em dia com a prestação de contas: {site}/transparencia",
+        "",
+        "<b>Combinados</b>",
+        "• Alerta não é acusação: é um padrão nos dados oficiais que vale verificar. Em cada um há o botão "
+        "“Pedir explicação”, com o pedido pronto pela Lei de Acesso à Informação.",
+        f"• Viu um erro, ou foi citado e quer responder? Use “Contestar ou corrigir”: {site}/contestar",
+        "• Não publicamos aqui nomes de pessoas físicas em alertas; esses ficam só no site, com aviso de possível homônimo.",
+        "• O código e os dados são abertos: https://github.com/sposito88/estou-de-olho",
+        "",
+        "Compartilhe com quem quer saber para onde vai o dinheiro da sua cidade. 👁",
     ])
+
+
+def publicar_apresentacao(s: Settings, fixar: bool) -> bool:
+    """Publica a apresentação no canal e, se pedido, fixa no topo."""
+    if s.telegram_bot_token is None or not s.telegram_chat_id:
+        logger.warning("Telegram não configurado")
+        return False
+    base = f"{s.telegram_api_url}/bot{s.telegram_bot_token.get_secret_value()}"
+    try:
+        resposta = requests.post(f"{base}/sendMessage", timeout=s.timeout, json={
+            "chat_id": s.telegram_chat_id, "text": apresentacao(s), "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        })
+        resposta.raise_for_status()
+        mensagem = resposta.json()["result"]["message_id"]
+        logger.info("Apresentação publicada (mensagem %s)", mensagem)
+        if fixar:
+            fixada = requests.post(f"{base}/pinChatMessage", timeout=s.timeout, json={
+                "chat_id": s.telegram_chat_id, "message_id": mensagem, "disable_notification": True,
+            })
+            fixada.raise_for_status()
+            logger.info("Apresentação fixada no topo do canal")
+        return True
+    except requests.RequestException as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        logger.error("Falha ao publicar a apresentação (%s, status %s)", type(exc).__name__, status)
+        return False
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m civic.canal", description=__doc__.splitlines()[0])
     parser.add_argument("--apresentacao", action="store_true", help="publica a mensagem de apresentação")
+    parser.add_argument("--fixar", action="store_true", help="com --apresentacao: fixa a mensagem no topo do canal")
     parser.add_argument("--simular", action="store_true", help="mostra o texto sem publicar")
     args = parser.parse_args(argv)
     s = get_settings()
@@ -108,7 +156,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.simular:
             print(texto)
             return 0
-        return 0 if enviar_telegram(texto, s) else 1
+        return 0 if publicar_apresentacao(s, args.fixar) else 1
     with SessionLocal() as db:
         desde = ultimo_resumo(db)
         if desde is None:
