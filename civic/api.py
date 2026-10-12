@@ -36,6 +36,8 @@ from civic.schemas import (
     BuscaOut,
     ContestacaoAdmin,
     ContratoTceOut,
+    TransparenciaItem,
+    TransparenciaOut,
     ContratosTceOut,
     ContestacaoAtualizacao,
     ContestacaoIn,
@@ -267,12 +269,47 @@ def create_app() -> FastAPI:
         senador_id: Annotated[int | None, Query(ge=1)] = None,
         municipio_ibge: Annotated[str | None, Query(pattern=r"^\d{7}$")] = None,
         min_prioridade: Annotated[int | None, Query(ge=0, le=100, description="só alertas com nota ≥ este valor")] = None,
+        ordem: Annotated[Literal["prioridade", "recentes"], Query()] = "prioridade",
     ) -> object:
         total, itens = queries.listar_alertas(
             db, tipo, gravidade, ano, _uf(uf), _partido(partido), deputado_id, cnpj, limit, offset,
-            esfera, deputado_estadual_id, orgao_id, senador_id, municipio_ibge, min_prioridade,
+            esfera, deputado_estadual_id, orgao_id, senador_id, municipio_ibge, min_prioridade, ordem,
         )
         return {"total": total, "itens": itens}
+
+    @app.get("/api/alertas/feed.xml", tags=["alertas"], response_class=Response)
+    def feed_alertas(
+        db: Db,
+        municipio_ibge: Annotated[str | None, Query(pattern=r"^\d{7}$")] = None,
+        cnpj: Annotated[str | None, Query(pattern=r"^\d{14}$")] = None,
+        deputado_id: Annotated[int | None, Query(ge=1)] = None,
+        senador_id: Annotated[int | None, Query(ge=1)] = None,
+        deputado_estadual_id: Annotated[int | None, Query(ge=1)] = None,
+        min_prioridade: Annotated[int | None, Query(ge=0, le=100)] = None,
+        titulo: Annotated[str | None, Query(max_length=120)] = None,
+        uf: Uf = None,
+        municipio: Annotated[str | None, Query(max_length=120)] = None,
+    ) -> Response:
+        """Feed Atom dos alertas mais recentes (pela data em que apareceram), para "seguir" uma cidade,
+        um fornecedor ou um político num leitor de RSS ou num serviço de RSS por e-mail."""
+        if municipio and uf and not municipio_ibge:
+            cidade = queries.municipio_ibge(db, uf.upper(), municipio)
+            if cidade is None:
+                raise HTTPException(status_code=404, detail="Município não encontrado")
+            municipio_ibge = cidade.codigo_ibge
+        _, itens = queries.listar_alertas(
+            db, None, None, None, None, None, deputado_id, cnpj, 50, 0, None, deputado_estadual_id, None, senador_id,
+            municipio_ibge, min_prioridade, "recentes",
+        )
+        return Response(content=_feed_alertas(itens, titulo or "Sinais de alerta", settings.site_url),
+                        media_type="application/atom+xml; charset=utf-8")
+
+    @app.get("/api/alertas/{alerta_id:int}", response_model=AlertaOut, tags=["alertas"])
+    def alerta(db: Db, alerta_id: Annotated[int, Path(ge=1)]) -> object:
+        _, itens = queries.listar_alertas(db, limit=1, alerta_id=alerta_id)
+        if not itens:
+            raise HTTPException(status_code=404, detail="Alerta não encontrado (os alertas são recalculados todo dia)")
+        return itens[0]
 
     @app.get("/api/alertas/resumo", response_model=ResumoAlertasOut, tags=["alertas"])
     def resumo_alertas(
@@ -546,6 +583,33 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="Contestação não encontrada")
         return item
 
+    # ------------------------------------------------------------------ transparência das prefeituras
+
+    @app.get("/api/transparencia", response_model=TransparenciaOut, tags=["transparência"])
+    def transparencia(
+        db: Db,
+        uf: Uf = None,
+        so_pendencias: bool = False,
+        limit: Annotated[int, Query(ge=1, le=200)] = 50,
+        offset: Offset = 0,
+    ) -> object:
+        """Quem está em dia com a prestação de contas (Tesouro, tribunal de contas, PNCP) e quem não está."""
+        from civic import transparencia as t
+
+        itens = [i for i in t.ranking(db) if (not uf or i["sigla_uf"] == uf.upper()) and (i["pendencias"] or not so_pendencias)]
+        return {"total": len(itens), "com_pendencia": sum(1 for i in itens if i["pendencias"]),
+                "itens": itens[offset:offset + limit]}
+
+    @app.get("/api/municipios/{uf}/{municipio}/transparencia", response_model=TransparenciaItem, tags=["transparência"])
+    def transparencia_municipio(db: Db, uf: UfPath, municipio: MunicipioPath) -> object:
+        from civic import transparencia as t
+
+        cidade = queries.municipio_ibge(db, uf.upper(), municipio)
+        item = next((i for i in t.ranking(db) if cidade and i["codigo_ibge"] == cidade.codigo_ibge), None)
+        if item is None:
+            raise HTTPException(status_code=404, detail="Município não encontrado")
+        return item
+
     # ------------------------------------------------------------------ busca
 
     @app.get("/api/busca", response_model=BuscaOut, tags=["busca"])
@@ -595,6 +659,34 @@ def _montar_feed(uf: str, municipio: str, itens: list[dict[str, object]], site_u
         ET.SubElement(entrada, f"{{{ns}}}updated").text = f"{p['ano']}-{int(p['mes']):02d}-01T00:00:00Z"  # type: ignore[call-overload]
         resumo = " · ".join(str(x) for x in (p.get("tipo_emenda"), p.get("objeto") or p.get("acao")) if x)
         ET.SubElement(entrada, f"{{{ns}}}summary").text = resumo or valor
+    return ET.tostring(feed, encoding="utf-8", xml_declaration=True)
+
+
+def _feed_alertas(itens: list[dict[str, object]], titulo: str, site_url: str) -> bytes:
+    """Atom com um item por alerta; o id usa a chave estável (não muda quando os alertas são recalculados)."""
+    ns = "http://www.w3.org/2005/Atom"
+    ET.register_namespace("", ns)
+    link = f"{site_url}/alertas"
+    feed = ET.Element(f"{{{ns}}}feed")
+    ET.SubElement(feed, f"{{{ns}}}title").text = f"{titulo} – Estou de Olho"
+    ET.SubElement(feed, f"{{{ns}}}id").text = f"{link}#{quote(titulo)}"
+    ET.SubElement(feed, f"{{{ns}}}link", href=link)
+    ET.SubElement(feed, f"{{{ns}}}updated").text = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    autor = ET.SubElement(feed, f"{{{ns}}}author")
+    ET.SubElement(autor, f"{{{ns}}}name").text = "Estou de Olho"
+    for a in itens:
+        entrada = ET.SubElement(feed, f"{{{ns}}}entry")
+        ET.SubElement(entrada, f"{{{ns}}}title").text = str(a["titulo"])
+        ET.SubElement(entrada, f"{{{ns}}}id").text = f"{site_url}/alertas#{a.get('chave') or a['id']}"
+        destino = f"{site_url}/fornecedores/{a['cnpj']}" if a.get("cnpj") else link
+        ET.SubElement(entrada, f"{{{ns}}}link", href=destino)
+        quando = a.get("primeira_vez") or datetime.now()
+        ET.SubElement(entrada, f"{{{ns}}}updated").text = (
+            quando.astimezone(timezone.utc).isoformat(timespec="seconds") if isinstance(quando, datetime) else str(quando)
+        )
+        ET.SubElement(entrada, f"{{{ns}}}summary").text = (
+            f"{a['descricao']} (Alerta não é acusação: é um padrão que vale verificar.)"
+        )
     return ET.tostring(feed, encoding="utf-8", xml_declaration=True)
 
 

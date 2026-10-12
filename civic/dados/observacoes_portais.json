@@ -1,0 +1,15 @@
+{
+  "_sobre": "Problemas de transparência verificados à mão nos portais das prefeituras (código IBGE -> lista). Cada item precisa de data e de como foi verificado.",
+  "2604007": [
+    {
+      "data": "2026-10-11",
+      "texto": "O portal da transparência bloqueia acesso automatizado (desafio anti-robô da Cloudflare), inclusive as URLs que ele mesmo publica como dados abertos.",
+      "url": "https://transparencia.carpina.pe.gov.br/app/pe/carpina/1/dados-abertos"
+    },
+    {
+      "data": "2026-10-11",
+      "texto": "O quadro funcional dos servidores no portal só vai até dezembro de 2024 (última atualização em 28/04/2025), embora a prefeitura envie a lista ao TCE-PE todo mês.",
+      "url": "https://transparencia.carpina.pe.gov.br/app/pe/carpina/1"
+    }
+  ]
+}

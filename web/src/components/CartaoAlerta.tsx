@@ -1,4 +1,4 @@
-import { AlertTriangle, Building2, Eye, Landmark } from "lucide-react";
+import { AlertTriangle, Building2, Eye, Landmark, Send } from "lucide-react";
 import { Link } from "react-router";
 import { useApi } from "../lib/api";
 import { formatarBRL, paraNumero, partidoUf } from "../lib/format";
@@ -157,7 +157,13 @@ export function CartaoAlerta({ alerta, tipos, mostrarDeputado = true, mostrarFor
         {paraNumero(alerta.valor) > 0 && (
           <span className="numero font-bold text-primary">{formatarBRL(alerta.valor)}</span>
         )}
-        <span className="ml-auto">
+        <span className="ml-auto flex flex-wrap items-center gap-x-4">
+          <Link
+            to={`/pedir-explicacao/${alerta.id}`}
+            className="inline-flex min-h-11 items-center gap-1 text-sm font-bold text-accent underline decoration-1 underline-offset-2 hover:text-accent-hover"
+          >
+            <Send aria-hidden className="size-4" /> Pedir explicação
+          </Link>
           <BotaoContestar alvo={`Alerta: ${alerta.titulo}`} url={alerta.cnpj ? `/fornecedores/${alerta.cnpj}` : undefined} />
         </span>
       </div>

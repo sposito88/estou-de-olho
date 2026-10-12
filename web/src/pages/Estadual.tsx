@@ -22,6 +22,7 @@ import type { Alerta, DetalheEstadual, NotaVerba, Pagina, ResumoEstaduais } from
 import { useParametros } from "../lib/useParametros";
 import { NaoEncontrado } from "./NaoEncontrado";
 import { semFoto } from "../lib/foto";
+import { Seguir } from "../components/Seguir";
 
 const POR_PAGINA = 20;
 
@@ -77,6 +78,7 @@ export function Estadual() {
             {[d.deputado.sigla_partido, "PE"].filter(Boolean).join("-")}
             {!d.deputado.em_exercicio && " · fora de exercício"}
           </p>
+          <Seguir filtro={{ deputado_estadual_id: d.deputado.id }} titulo={d.deputado.nome} />
         </div>
         <div className="sm:w-48">
           <CampoSelect

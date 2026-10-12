@@ -17,6 +17,7 @@ import type { Alerta, EmendasDeputado, Filtros, GastosDeputado, Pagina } from ".
 import { useParametros } from "../lib/useParametros";
 import { NaoEncontrado } from "./NaoEncontrado";
 import { semFoto } from "../lib/foto";
+import { Seguir } from "../components/Seguir";
 
 const POR_PAGINA = 20;
 
@@ -63,6 +64,7 @@ export function Deputado() {
             {deputado.nome}
           </h1>
           <p className="text-lg text-secondary">{partidoUf(deputado.sigla_partido, deputado.sigla_uf)}</p>
+          <Seguir filtro={{ deputado_id: deputado.id }} titulo={deputado.nome} />
           <a
             href={LINKS_EXTERNOS.perfilDeputado(deputado.id)}
             target="_blank"

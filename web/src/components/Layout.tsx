@@ -6,6 +6,7 @@ import { MUNICIPIO_PADRAO } from "../lib/config";
 import { formatarDataHora } from "../lib/format";
 import { Carregando } from "./Estado";
 import { RespostasPublicas } from "./Contestar";
+import { FontesDaPagina } from "./FontesDaPagina";
 import type { Health } from "../lib/types";
 
 const NAVEGACAO = [
@@ -15,6 +16,7 @@ const NAVEGACAO = [
   { para: "/senadores", rotulo: "Senado" },
   { para: "/estaduais", rotulo: "Estaduais" },
   { para: "/alertas", rotulo: "Alertas" },
+  { para: "/transparencia", rotulo: "Prefeituras" },
   { para: "/busca", rotulo: "Buscar" },
   { para: "/sobre", rotulo: "Sobre os dados" },
 ];
@@ -102,6 +104,7 @@ export function Layout() {
         <Suspense fallback={<Carregando linhas={6} />}>
           <Outlet />
           <RespostasPublicas />
+          <FontesDaPagina />
         </Suspense>
       </main>
 

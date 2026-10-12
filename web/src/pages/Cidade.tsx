@@ -34,6 +34,7 @@ import type {
   PagamentoEmenda,
 } from "../lib/types";
 import { useParametros } from "../lib/useParametros";
+import { TransparenciaCidade } from "../components/TransparenciaCidade";
 
 const POR_PAGINA = 20;
 
@@ -55,6 +56,7 @@ export function Cidade() {
   return (
     <div className="space-y-6">
       <CabecalhoCidade uf={uf} municipio={municipio} nome={nome} />
+      <TransparenciaCidade uf={uf} municipio={municipio} />
 
       <BuscaMunicipio />
 

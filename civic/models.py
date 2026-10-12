@@ -251,6 +251,8 @@ class Alerta(Base):
     titulo: Mapped[str] = mapped_column(String(300))
     descricao: Mapped[str] = mapped_column(Text)
     prioridade: Mapped[int] = mapped_column(Integer, default=0, index=True)  # 0 a 100 (ver alertas.pontuar)
+    chave: Mapped[str | None] = mapped_column(String(40), index=True)  # estável entre recálculos
+    primeira_vez: Mapped[datetime | None] = mapped_column(DateTime, index=True)  # quando apareceu pela 1ª vez
     calculado_em: Mapped[datetime] = mapped_column(DateTime)
 
 
@@ -723,3 +725,13 @@ class Contestacao(Base):
     resposta_publica: Mapped[str | None] = mapped_column(Text)
     respondido_em: Mapped[datetime | None] = mapped_column(DateTime)
     origem_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+
+
+class AlertaHistorico(Base):
+    """Quando cada alerta (pela chave estável) apareceu pela primeira vez: os alertas são recalculados
+    do zero todo dia, e é isto que permite avisar só o que é novo (feeds, "seguir")."""
+
+    __tablename__ = "alertas_historico"
+
+    chave: Mapped[str] = mapped_column(String(40), primary_key=True)
+    primeira_vez: Mapped[datetime] = mapped_column(DateTime)

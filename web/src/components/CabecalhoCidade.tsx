@@ -5,6 +5,7 @@ import { CampoBusca } from "./CampoBusca";
 import { tribunal } from "../lib/tribunal";
 import type { Prefeitura } from "../lib/types";
 import { nomeProprio } from "../lib/format";
+import { Seguir } from "./Seguir";
 
 interface CabecalhoCidadeProps {
   uf: string;
@@ -42,6 +43,7 @@ export function CabecalhoCidade({ uf, municipio, nome }: CabecalhoCidadeProps) {
           <h1 className="text-3xl font-bold text-primary sm:text-4xl">
             {nome ?? nomeProprio(municipio)} <span className="text-muted-foreground">– {uf.toUpperCase()}</span>
           </h1>
+          <Seguir filtro={{ uf: uf.toUpperCase(), municipio }} titulo={nome ?? nomeProprio(municipio)} />
         </div>
         <div className="w-full text-primary lg:w-[28rem]">
           <CampoBusca

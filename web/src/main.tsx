@@ -19,6 +19,8 @@ const Estadual = lazy(() => import("./pages/Estadual").then((m) => ({ default: m
 const Camara = lazy(() => import("./pages/Camara").then((m) => ({ default: m.Camara })));
 const Prefeitura = lazy(() => import("./pages/Prefeitura").then((m) => ({ default: m.Prefeitura })));
 const Contratos = lazy(() => import("./pages/Contratos").then((m) => ({ default: m.Contratos })));
+const Transparencia = lazy(() => import("./pages/Transparencia").then((m) => ({ default: m.Transparencia })));
+const PedirExplicacao = lazy(() => import("./pages/PedirExplicacao").then((m) => ({ default: m.PedirExplicacao })));
 const DadosAbertos = lazy(() => import("./pages/DadosAbertos").then((m) => ({ default: m.DadosAbertos })));
 const Contestar = lazy(() => import("./pages/Contestar").then((m) => ({ default: m.Contestar })));
 const Correcoes = lazy(() => import("./pages/Correcoes").then((m) => ({ default: m.Correcoes })));
@@ -59,6 +61,8 @@ createRoot(document.getElementById("root")!).render(
           <Route path="fornecedores/:cnpj" element={<Fornecedor />} />
           <Route path="busca" element={<Busca />} />
           <Route path="contestar" element={<Contestar />} />
+          <Route path="transparencia" element={<Transparencia />} />
+          <Route path="pedir-explicacao/:id" element={<PedirExplicacao />} />
           <Route path="dados-abertos" element={<DadosAbertos />} />
           <Route path="correcoes" element={<Correcoes />} />
           <Route path="privacidade" element={<Privacidade />} />

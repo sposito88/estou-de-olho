@@ -234,6 +234,7 @@ export interface Alerta {
   gravidade: Gravidade;
   /** 0 a 100: tipo, gravidade, valor e evidências que se somam. */
   prioridade?: number;
+  primeira_vez?: string | null;
   esfera: Esfera;
   deputado: Deputado | null;
   senador: Senador | null;
@@ -663,4 +664,19 @@ export interface ContestacaoPublica {
   resposta_publica: string | null;
   criado_em: string;
   respondido_em: string | null;
+}
+
+export interface TransparenciaItem {
+  codigo_ibge: string;
+  nome: string;
+  sigla_uf: string;
+  populacao: number | null;
+  rreo_bimestre: number | null;
+  rreo_esperado: number | null;
+  dca_anterior: boolean;
+  tribunal: string | null;
+  tribunal_ultimo_mes: number | null;
+  ultimo_contrato_pncp: string | null;
+  pendencias: string[];
+  observacoes: { data?: string | null; texto: string; url?: string | null }[];
 }

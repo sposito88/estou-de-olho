@@ -317,6 +317,7 @@ class AlertaOut(Schema):
     tipo: str
     gravidade: str
     prioridade: int = 0
+    primeira_vez: datetime | None = None
     esfera: str
     deputado: DeputadoOut | None
     senador: SenadorOut | None
@@ -961,3 +962,33 @@ class ContratoTceOut(Schema):
     situacao: str | None
     estagio: str | None
     url_documento: str | None
+
+
+# --------------------------------------------------------------------------- transparência das prefeituras
+
+
+class ObservacaoPortal(Schema):
+    data: str | None = None
+    texto: str
+    url: str | None = None
+
+
+class TransparenciaItem(Schema):
+    codigo_ibge: str
+    nome: str
+    sigla_uf: str
+    populacao: int | None
+    rreo_bimestre: int | None
+    rreo_esperado: int | None
+    dca_anterior: bool
+    tribunal: str | None
+    tribunal_ultimo_mes: int | None
+    ultimo_contrato_pncp: date | None
+    pendencias: list[str]
+    observacoes: list[ObservacaoPortal]
+
+
+class TransparenciaOut(Schema):
+    total: int
+    com_pendencia: int
+    itens: list[TransparenciaItem]

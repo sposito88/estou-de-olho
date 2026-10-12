@@ -22,6 +22,7 @@ import type { Alerta, DetalheSenador, NotaVerba, Pagina, ResumoEstaduais } from 
 import { useParametros } from "../lib/useParametros";
 import { NaoEncontrado } from "./NaoEncontrado";
 import { semFoto } from "../lib/foto";
+import { Seguir } from "../components/Seguir";
 
 const POR_PAGINA = 20;
 
@@ -77,6 +78,7 @@ export function Senador() {
             {[d.senador.sigla_partido, d.senador.sigla_uf].filter(Boolean).join("-")}
             {!d.senador.em_exercicio && " · fora de exercício"}
           </p>
+          <Seguir filtro={{ senador_id: d.senador.id }} titulo={d.senador.nome} />
         </div>
         <div className="sm:w-48">
           <CampoSelect

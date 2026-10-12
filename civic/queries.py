@@ -608,11 +608,15 @@ def listar_alertas(
     senador_id: int | None = None,
     municipio_ibge: str | None = None,
     min_prioridade: int | None = None,
+    ordem: str = "prioridade",
+    alerta_id: int | None = None,
 ) -> tuple[int, list[dict[str, Any]]]:
     """Alertas com quem gastou (deputado, deputado estadual ou órgão); os de maior prioridade primeiro."""
     filtro = _filtro_alertas(tipo, gravidade, ano, uf, partido, esfera)
     if min_prioridade:
         filtro.append(Alerta.prioridade >= min_prioridade)
+    if alerta_id is not None:
+        filtro.append(Alerta.id == alerta_id)
     if deputado_id is not None:
         filtro.append(Alerta.deputado_id == deputado_id)
     if deputado_estadual_id is not None:
@@ -634,7 +638,10 @@ def listar_alertas(
     linhas = db.execute(
         _alertas_base(Alerta, Deputado, DeputadoEstadual, UnidadeGestora, Senador)
         .where(*filtro)
-        .order_by(Alerta.prioridade.desc(), Alerta.valor_centavos.desc(), Alerta.id)
+        .order_by(*(
+            (Alerta.primeira_vez.desc().nulls_last(), Alerta.prioridade.desc(), Alerta.id) if ordem == "recentes"
+            else (Alerta.prioridade.desc(), Alerta.valor_centavos.desc(), Alerta.id)
+        ))
         .limit(limit)
         .offset(offset)
     ).all()
@@ -665,6 +672,7 @@ def _alerta_dict(
         "tipo": alerta.tipo,
         "gravidade": alerta.gravidade,
         "prioridade": alerta.prioridade or 0,
+        "primeira_vez": alerta.primeira_vez,
         "esfera": alerta.esfera,
         "deputado": deputado,
         "deputado_estadual": estadual,

@@ -211,7 +211,10 @@ def coletar_rreo(
     for codigo in barra(pendentes, progresso, desc=f"RREO {ano}", unit="mun"):
         try:
             linhas: list[dict[str, Any]] = []
-            for periodo in range(esperado, (atual.get(codigo) or 0) if not forcar else 0, -1):
+            # Dia comum: só o bimestre esperado. Domingo (ou --forcar): volta até achar um entregue,
+            # para pegar quem entregou bimestres antigos com atraso.
+            minimo = 0 if (forcar or hoje.weekday() == 6) else max(esperado - 1, 0)
+            for periodo in range(esperado, max(atual.get(codigo) or 0, minimo), -1):
                 corpo = cliente.get(
                     f"{s.siconfi_url}/rreo",
                     {"an_exercicio": ano, "nr_periodo": periodo, "co_tipo_demonstrativo": "RREO",

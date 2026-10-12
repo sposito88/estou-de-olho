@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import delete, insert, text
+from sqlalchemy import delete, insert, select, text
 from sqlalchemy.orm import Session
 
 from civic.cleaning import normalizar_nome
@@ -1052,6 +1052,21 @@ def recalcular_alertas(db: Session, settings: Settings) -> dict[str, int]:
     for regra in (alertas_servidor_socio, alertas_eleito_socio, alertas_doador_socio, alertas_emenda_pix,
                   alertas_contrato_capital):
         somar(regra.__name__.removeprefix("alertas_"), [_completar(a, municipios) for a in regra(db, settings)])
+
+    import hashlib
+
+    from civic.models import AlertaHistorico
+
+    for a in todos:
+        partes = [a.get(c) for c in ("tipo", "deputado_id", "deputado_estadual_id", "senador_id", "unidade_gestora_id",
+                                     "orgao_cnpj", "municipio_ibge", "cnpj", "ano")]
+        a["chave"] = hashlib.sha1("|".join("" if p is None else str(p) for p in partes).encode()).hexdigest()
+    vistos = dict(db.execute(select(AlertaHistorico.chave, AlertaHistorico.primeira_vez)).all())
+    novos = [{"chave": c, "primeira_vez": agora} for c in {a["chave"] for a in todos} if c not in vistos]
+    for i in range(0, len(novos), 5_000):
+        db.execute(insert(AlertaHistorico), novos[i:i + 5_000])
+    for a in todos:
+        a["primeira_vez"] = vistos.get(a["chave"], agora)
 
     tipos_por_cnpj: dict[str, set[str]] = defaultdict(set)
     for a in todos:

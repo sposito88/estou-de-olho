@@ -22,6 +22,7 @@ import type { Alerta, CadastroFornecedor, DocumentoFornecedor, Fornecedor as For
 import { useParametros } from "../lib/useParametros";
 import { NaoEncontrado } from "./NaoEncontrado";
 import { BotaoContestar } from "../components/Contestar";
+import { Seguir } from "../components/Seguir";
 
 export function Fornecedor() {
   const { cnpj = "" } = useParams();
@@ -48,7 +49,10 @@ export function Fornecedor() {
         </p>
         <h1 className="text-3xl font-bold text-primary">{nome}</h1>
         <p className="numero text-secondary">CNPJ {formatarDocumento(f.cnpj)}</p>
-        <BotaoContestar alvo={`Fornecedor: ${nome}`} />
+        <div className="flex flex-wrap items-center gap-3">
+          <Seguir filtro={{ cnpj: f.cnpj }} titulo={nome} />
+          <BotaoContestar alvo={`Fornecedor: ${nome}`} />
+        </div>
       </div>
 
       <section aria-label="Resumo" className="grid gap-4 sm:grid-cols-3">
