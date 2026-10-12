@@ -68,7 +68,19 @@ A rotina copia o backup do dia e apaga no destino o que tiver mais de 30 dias.
 - **Rotina:** o `civic.monitor` avisa no Telegram quando algum passo termina com falha.
 - **Disco:** acompanhe `df -h`; o banco cresce com as coletas nacionais.
 
-## 6. Contestações e direito de resposta
+## 6. Comandos pelo Telegram
+
+Com `TELEGRAM_BOT_TOKEN` e `TELEGRAM_ADMIN_CHAT_ID` no `.env` (mande `/start` ao bot e pegue o id da
+conversa em `getUpdates`), ligue o bot de administração no cron:
+
+```cron
+*/5 * * * * cd $HOME/estou-de-olho && flock -n /tmp/estoudeolho-bot.lock python3 deploy/bot_admin.py >> data/logs/bot.log 2>&1
+```
+
+Na conversa privada com o bot: `/status`, `/rotina`, `/atualizar <fonte>`, `/log` e `/ajuda`. Ele só aceita
+essa conversa e só executa comandos de uma lista fixa; tarefas manuais e a rotina diária não rodam juntas.
+
+## 7. Contestações e direito de resposta
 
 Os pedidos chegam pelo site (`/contestar`) e avisam no Telegram. Para analisar:
 
@@ -84,7 +96,7 @@ Status: `recebida`, `em_analise`, `corrigida`, `mantida` (com explicação) e `r
 Os três últimos aparecem em público em `/correcoes` e na própria página contestada. Combine um prazo
 de resposta (ex.: 10 dias úteis) e cumpra.
 
-## 7. Quando mudar para PostgreSQL
+## 8. Quando mudar para PostgreSQL
 
 O SQLite em modo WAL aguenta bem muitas leituras e uma escrita por vez, o que basta para o site com
 coleta noturna. Mude quando aparecer um destes sinais:
