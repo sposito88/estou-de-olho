@@ -22,6 +22,9 @@ def _sem_limite_de_consultas(monkeypatch: pytest.MonkeyPatch) -> None:
     from civic.config import get_settings
 
     monkeypatch.setattr(get_settings(), "api_limite_por_minuto", 0)
+    # Nenhum teste pode usar o bot, o canal ou o token de administração de produção.
+    for campo in ("telegram_bot_token", "telegram_chat_id", "telegram_admin_chat_id", "admin_token"):
+        monkeypatch.setattr(get_settings(), campo, None)
 
 
 @pytest.fixture()
@@ -39,8 +42,13 @@ def db(fabrica: sessionmaker[Session]) -> Iterator[Session]:
         yield sessao
 
 
+SEGREDOS = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_ADMIN_CHAT_ID", "ADMIN_TOKEN", "TRANSPARENCIA_API_KEY")
+
+
 @pytest.fixture()
-def settings() -> Settings:
+def settings(monkeypatch: pytest.MonkeyPatch) -> Settings:
+    for nome in SEGREDOS:  # variáveis do ambiente (ex.: contêiner com o .env de produção) não entram nos testes
+        monkeypatch.delenv(nome, raising=False)
     return Settings(_env_file=None)  # type: ignore[call-arg]
 
 

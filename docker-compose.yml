@@ -112,4 +112,10 @@ services:
       - .:/app
     environment:
       DATABASE_URL: "sqlite://"
+      # Testes nunca usam segredos de produção (nem publicam no canal de verdade).
+      TELEGRAM_BOT_TOKEN: ""
+      TELEGRAM_CHAT_ID: ""
+      TELEGRAM_ADMIN_CHAT_ID: ""
+      ADMIN_TOKEN: ""
+      TRANSPARENCIA_API_KEY: ""
     command: ["python", "-m", "pytest", "-p", "no:cacheprovider", "-o", "addopts=", "-q"]
